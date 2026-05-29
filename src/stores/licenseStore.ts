@@ -35,10 +35,20 @@ function publicStatus(
   trialEndsAt: Date | null,
   licenseGate: LicenseGate,
 ): PublicLicenseStatus {
-  if (licenseGate === 'clock_skew' || licenseGate === 'probe_offline') return 'locked'
+  if (licenseGate === 'clock_skew') return 'locked'
   if (licenseStatus === 'active') return 'active'
   if (licenseStatus === 'trial' && trialEndsAt && isAfter(trialEndsAt, new Date())) return 'trial'
+  if (licenseGate === 'probe_offline') return 'locked'
   return 'locked'
+}
+
+/** Prefer the longer trial end (local 2.5 months vs server) so extensions apply everywhere. */
+function effectiveTrialEndsAt(firstLaunchIso: string | null, serverEndsMs?: number): Date | null {
+  const local = firstLaunchIso ? computeTrialEndsAt(new Date(firstLaunchIso)) : null
+  if (serverEndsMs == null || !Number.isFinite(serverEndsMs)) return local
+  const server = new Date(serverEndsMs)
+  if (!local) return server
+  return isAfter(local, server) ? local : server
 }
 
 export const useLicenseStore = create<LicenseState>((set) => ({
@@ -91,11 +101,16 @@ export const useLicenseStore = create<LicenseState>((set) => ({
     if (supabase && machineId.trim()) {
       const probe = await fetchLicenseProbe(machineId, first)
       if (!probe.ok) {
+        // Server probe failed — keep trial if local window (2.5 months) is still valid.
         if (licenseStatus === 'trial') {
-          licenseGate = 'probe_offline'
-          activationHintKey = 'license.probeFailed'
-          if (prevGate !== 'probe_offline') {
-            useToastStore.getState().push(i18n.t('license.probeFailed'), 'error')
+          if (trialEndsAt && isAfter(trialEndsAt, new Date())) {
+            licenseGate = null
+          } else {
+            licenseGate = 'probe_offline'
+            activationHintKey = 'license.probeFailed'
+            if (prevGate !== 'probe_offline') {
+              useToastStore.getState().push(i18n.t('license.probeFailed'), 'error')
+            }
           }
         }
       } else {
@@ -113,8 +128,8 @@ export const useLicenseStore = create<LicenseState>((set) => ({
             useSessionStore.getState().setUser(null)
           }
         } else if (licenseStatus === 'trial') {
-          trialEndsAt = new Date(probe.trialEndsAtMs)
-          if (!probe.trialValid) {
+          trialEndsAt = effectiveTrialEndsAt(first, probe.trialEndsAtMs)
+          if (!trialEndsAt || !isAfter(trialEndsAt, new Date())) {
             licenseStatus = 'inactive'
             await setConfig('license_status', 'inactive')
           }
