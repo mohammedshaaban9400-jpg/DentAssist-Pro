@@ -25,7 +25,7 @@ npm run build:web
    - `VITE_SUPABASE_ANON_KEY`
 3. عند كل دفع إلى `main` يُنشر الموقع تلقائياً.
 
-الرابط المتوقع: `https://mohammed940.github.io/cental/`
+الرابط المتوقع: `https://mohammedshaaban9400-jpg.github.io/DentAssist-Pro/`
 
 ## ملاحظة
 
