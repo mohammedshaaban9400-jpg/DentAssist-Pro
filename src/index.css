@@ -1,0 +1,244 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-arabic: 'Tajawal', ui-sans-serif, system-ui, sans-serif;
+  --shadow-dent-card: 0 2px 10px -3px rgba(15, 23, 42, 0.08);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow-x: hidden;
+  }
+
+  html {
+    @apply antialiased;
+  }
+
+  body {
+    margin: 0;
+    background: #f0f4f8;
+    @apply text-slate-900 text-sm leading-relaxed;
+    overflow-x: hidden;
+  }
+
+  html[dir='rtl'] body {
+    font-family: var(--font-arabic);
+  }
+
+  html[dir='ltr'] body {
+    font-family: var(--font-sans);
+  }
+
+  h1 {
+    @apply text-2xl font-bold tracking-tight text-slate-900;
+  }
+
+  h2 {
+    @apply text-xl font-semibold tracking-tight text-slate-800;
+  }
+}
+
+/* Electron custom title bar — must match Tailwind arbitrary where used */
+.app-drag {
+  -webkit-app-region: drag;
+}
+
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Thin scrollbars (main content areas) */
+.thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(203 213 225) transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.thin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgb(203 213 225);
+  border-radius: 9999px;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(148 163 184);
+}
+
+/* Dark attractive scrollbar for sidebars */
+.dark-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(20, 184, 166, 0.4) transparent;
+}
+
+.dark-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.dark-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dark-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(20, 184, 166, 0.4);
+  border-radius: 9999px;
+}
+
+.dark-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(20, 184, 166, 0.8);
+}
+
+/* Design tokens as component shortcuts */
+@layer components {
+  .da-card {
+    @apply rounded-2xl border border-slate-100 bg-white p-6 shadow-[var(--shadow-dent-card)];
+  }
+
+  .da-card-pad-lg {
+    @apply rounded-2xl border border-slate-100 bg-white p-8 shadow-[var(--shadow-dent-card)];
+  }
+
+  .da-btn-primary {
+    @apply inline-flex cursor-pointer items-center justify-center rounded-xl bg-teal-600 px-6 py-2.5 text-sm font-medium text-white shadow-md transition-all duration-200 hover:bg-teal-700 hover:shadow-lg active:scale-95 disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .da-btn-secondary {
+    @apply inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white px-6 py-2.5 text-sm font-medium text-slate-700 transition-all duration-200 hover:bg-slate-50 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .da-btn-ghost {
+    @apply inline-flex cursor-pointer items-center justify-center rounded-lg px-4 py-2 text-sm font-medium text-teal-700 transition-colors hover:bg-teal-50;
+  }
+
+  .da-input {
+    @apply block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-900 shadow-sm outline-none transition-all placeholder:text-slate-500 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/25;
+  }
+
+  .da-table-wrap {
+    @apply overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-[var(--shadow-dent-card)];
+  }
+
+  .da-table {
+    @apply w-full border-collapse text-start text-sm;
+  }
+
+  .da-table thead {
+    @apply border-b border-slate-100 bg-slate-50;
+  }
+
+  .da-table th {
+    @apply px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500;
+  }
+
+  .da-table td {
+    @apply border-b border-slate-100 px-6 py-4 text-slate-700;
+  }
+
+  .da-table tbody tr {
+    @apply transition-colors hover:bg-slate-50/50;
+  }
+
+  .da-table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+
+  .da-splash-pulse {
+    animation: da-splash-pulse 1.6s ease-in-out infinite;
+  }
+
+  .list-page-header {
+    @apply flex flex-col gap-3 border-b border-slate-200 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6 sm:py-4;
+  }
+
+  .list-page-header h1 {
+    @apply flex min-w-0 items-center gap-2 text-lg font-bold text-slate-800 sm:text-xl;
+  }
+
+  .list-page-toolbar {
+    @apply flex flex-col gap-3 border-b border-slate-100 bg-slate-50/50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6;
+  }
+
+  .list-page-band {
+    @apply border-b border-slate-100 px-3 py-3 sm:px-6;
+  }
+
+  .list-page-kpi-grid {
+    @apply grid gap-3 border-b border-slate-100 bg-slate-50/30 p-3 sm:grid-cols-3 sm:gap-4 sm:p-6;
+  }
+
+  .list-page-kpi-grid .rounded-2xl {
+    @apply p-4 sm:p-5;
+  }
+
+  .list-page-kpi-grid p.text-2xl {
+    @apply text-xl sm:text-2xl;
+  }
+
+  .mobile-card-list {
+    @apply flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3 md:hidden;
+  }
+
+  .desktop-table-pane {
+    @apply hidden min-h-0 flex-1 overflow-x-auto md:block;
+  }
+
+  .desktop-table-scroll {
+    @apply min-h-0 flex-1 overflow-x-auto;
+  }
+
+  .mobile-card {
+    @apply rounded-xl border border-slate-100 bg-white p-3 shadow-sm;
+  }
+
+  .mobile-card-actions {
+    @apply mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-3;
+  }
+
+  .list-page-error {
+    @apply mx-3 my-3 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 sm:mx-6;
+  }
+}
+
+@keyframes da-splash-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.72;
+    transform: scale(1.04);
+  }
+}
+
+/* Comfortable touch targets on phones and tablets (web/PWA) */
+@media (hover: none) and (pointer: coarse) {
+  .da-btn-primary,
+  .da-btn-secondary,
+  .da-btn-ghost {
+    min-height: 2.75rem;
+  }
+
+  .da-input,
+  .da-input select {
+    min-height: 2.75rem;
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .da-splash-pulse {
+    animation: none;
+  }
+}
