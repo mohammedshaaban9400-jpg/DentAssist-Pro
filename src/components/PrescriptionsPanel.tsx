@@ -7,6 +7,7 @@ import { useConfirm } from '@/hooks/useConfirm'
 import { useReactToPrint } from 'react-to-print'
 import type { MedicationLineDraft, PrescriptionRow } from '@/types/clinical'
 import { PrescriptionPrintDocument, type PrescriptionPrintDocumentProps } from '@/components/PrescriptionPrintDocument'
+import { MobileCardActions } from '@/components/layout/ListPageLayout'
 import { MEDICATION_SUGGESTIONS, suggestionLabel } from '@/lib/medicationSuggestions'
 import {
   createPrescription,
@@ -241,7 +242,7 @@ export function PrescriptionsPanel({ patientId, doctorId, patientDisplayName, pa
   const showForm = editingId !== null
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm" aria-labelledby="rx-heading">
+    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6" aria-labelledby="rx-heading">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 id="rx-heading" className="flex items-center gap-2 text-lg font-semibold text-slate-900">
@@ -395,7 +396,60 @@ export function PrescriptionsPanel({ patientId, doctorId, patientDisplayName, pa
         </div>
       ) : null}
 
-      <div className="mt-6 overflow-hidden rounded-xl border border-slate-100">
+      {/* Mobile cards */}
+      <div className="mt-4 space-y-3 md:hidden">
+        {loading ? (
+          <p className="py-6 text-center text-sm text-slate-500">{t('common.loading')}</p>
+        ) : rows.length === 0 && !showForm ? (
+          <p className="py-6 text-center text-sm text-slate-500">{t('patients.rxEmpty')}</p>
+        ) : (
+          rows.map((r) => (
+            <article key={r.id} className="mobile-card">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('patients.rxDate')}</p>
+                <p className="text-sm font-semibold text-slate-900">
+                  {format(parseISO(r.date), 'PP', { locale: loc })}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {t('patients.rxDoctor')}: <span className="font-medium text-slate-700">{r.doctor_username}</span>
+                </p>
+                <p className="text-sm text-slate-600">{medSummary(r)}</p>
+              </div>
+              <MobileCardActions>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void queuePrint(r)}
+                  className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-teal-50 px-3 py-2 text-sm font-semibold text-teal-800"
+                >
+                  <Printer className="size-4" aria-hidden />
+                  {t('print.reprint')}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy || editingId !== null}
+                  onClick={() => startEdit(r)}
+                  className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700"
+                >
+                  <Pencil className="size-4" aria-hidden />
+                  {t('common.edit')}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void remove(r.id)}
+                  className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700"
+                >
+                  <Trash2 className="size-4" aria-hidden />
+                  {t('common.delete')}
+                </button>
+              </MobileCardActions>
+            </article>
+          ))
+        )}
+      </div>
+
+      <div className="mt-6 hidden overflow-x-auto rounded-xl border border-slate-100 md:block">
         <table className="w-full text-start text-sm">
           <thead className="border-b border-slate-200 bg-slate-50/80">
             <tr>

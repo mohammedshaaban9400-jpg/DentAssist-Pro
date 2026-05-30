@@ -208,6 +208,30 @@
   .list-page-error {
     @apply mx-3 my-3 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700 sm:mx-6;
   }
+
+  /* Bottom sheet modals — clear fixed mobile nav + safe area */
+  .da-mobile-sheet-overlay {
+    @apply fixed inset-0 z-[80] flex items-end justify-center bg-slate-900/50 p-3 backdrop-blur-sm sm:items-center sm:p-4;
+    padding-bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  @media (min-width: 640px) {
+    .da-mobile-sheet-overlay {
+      padding-bottom: 1rem;
+    }
+  }
+
+  .da-mobile-sheet {
+    @apply flex w-full max-h-[min(85dvh,calc(100dvh-5.5rem-env(safe-area-inset-bottom,0px)))] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:max-h-[92vh];
+  }
+
+  .da-mobile-sheet-body {
+    @apply thin-scrollbar flex-1 overflow-y-auto;
+  }
+
+  .da-mobile-sheet-footer {
+    @apply flex shrink-0 flex-wrap justify-end gap-3 border-t border-slate-100 bg-slate-50/50 px-4 py-3 sm:px-6 sm:py-4;
+  }
 }
 
 @keyframes da-splash-pulse {

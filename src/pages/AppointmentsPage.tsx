@@ -500,14 +500,14 @@ export function AppointmentsPage() {
 
       {/* Modal */}
       {modal ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-4 backdrop-blur-sm sm:items-center">
-          <div className="thin-scrollbar max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl">
-            <div className="border-b border-slate-100 px-6 py-5">
+        <div className="da-mobile-sheet-overlay">
+          <div className="da-mobile-sheet max-w-lg">
+            <div className="shrink-0 border-b border-slate-100 px-4 py-4 sm:px-6 sm:py-5">
               <h2 className="text-base font-bold text-slate-900">
                 {modal === 'create' ? t('appointments.modalCreate') : t('appointments.modalEdit')}
               </h2>
             </div>
-            <div className="space-y-5 p-6">
+            <div className="da-mobile-sheet-body space-y-5 p-4 sm:p-6">
               <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
                 {t('appointments.fieldPatient')}
                 <select value={patientId || ''} onChange={(e) => setPatientId(Number(e.target.value))} className="da-input cursor-pointer bg-white">
@@ -540,7 +540,7 @@ export function AppointmentsPage() {
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="da-input min-h-[5rem] cursor-text resize-none" />
               </label>
             </div>
-            <div className="flex justify-end gap-3 border-t border-slate-100 bg-slate-50/50 px-6 py-4">
+            <div className="da-mobile-sheet-footer">
               <button type="button" onClick={() => setModal(null)} className="da-btn-secondary !px-5 !py-2.5">
                 {t('common.cancel')}
               </button>

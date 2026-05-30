@@ -298,14 +298,14 @@ export function InvoicesPage() {
 
       {/* Modal */}
       {modal ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-4 backdrop-blur-sm sm:items-center">
-          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
-            <div className="border-b border-slate-100 px-6 py-5">
+        <div className="da-mobile-sheet-overlay">
+          <div className="da-mobile-sheet max-w-2xl">
+            <div className="shrink-0 border-b border-slate-100 px-4 py-4 sm:px-6 sm:py-5">
               <h2 className="text-base font-bold text-slate-900">
                 {modal === 'create' ? t('invoices.modalCreate') : t('invoices.modalEdit')}
               </h2>
             </div>
-            <div className="space-y-5 p-6">
+            <div className="da-mobile-sheet-body space-y-5 p-4 sm:p-6">
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700 sm:col-span-2">
                   {t('invoices.fieldPatient')}
@@ -395,7 +395,7 @@ export function InvoicesPage() {
                 </div>
               </div>
             </div>
-            <div className="flex justify-end gap-3 border-t border-slate-100 bg-slate-50/50 px-6 py-4 rounded-b-2xl">
+            <div className="da-mobile-sheet-footer rounded-b-2xl">
               <button type="button" onClick={() => setModal(null)} className="da-btn-secondary !px-5 !py-2.5">
                 {t('common.cancel')}
               </button>
