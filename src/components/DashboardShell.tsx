@@ -314,7 +314,7 @@ export function DashboardShell() {
         </aside>
 
         {/* ─── Main content ─── */}
-        <main className="thin-scrollbar flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto p-3 pb-[calc(5.25rem+env(safe-area-inset-bottom,0px))] sm:p-5 md:pb-5 md:p-8">
+        <main className="thin-scrollbar flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto p-3 pb-[calc(7rem+env(safe-area-inset-bottom,0px))] sm:p-5 md:pb-5 md:p-8">
           <div data-tour="main-content" className="flex min-h-0 min-w-0 flex-1 flex-col">
             <AnimatePresence mode="wait" initial={false}>
               <motion.div

@@ -174,19 +174,31 @@
   }
 
   .list-page-kpi-grid {
-    @apply grid gap-3 border-b border-slate-100 bg-slate-50/30 p-3 sm:grid-cols-3 sm:gap-4 sm:p-6;
+    @apply grid grid-cols-3 gap-2 border-b border-slate-100 bg-slate-50/30 p-3 sm:gap-4 sm:p-6;
   }
 
   .list-page-kpi-grid .rounded-2xl {
-    @apply p-4 sm:p-5;
+    @apply p-3 sm:p-5;
   }
 
   .list-page-kpi-grid p.text-2xl {
-    @apply text-xl sm:text-2xl;
+    @apply text-lg sm:text-2xl;
+  }
+
+  .list-page-kpi-grid .size-10 {
+    @apply size-8 sm:size-10;
+  }
+
+  .list-page-kpi-grid > .rounded-2xl > .flex {
+    @apply flex-col items-center gap-1.5 text-center sm:flex-row sm:items-center sm:gap-3 sm:text-start;
+  }
+
+  .list-page-kpi-grid .text-xs.font-semibold {
+    @apply text-[10px] leading-tight sm:text-xs;
   }
 
   .mobile-card-list {
-    @apply flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3 md:hidden;
+    @apply flex flex-col gap-2 p-3 pb-2 md:hidden;
   }
 
   .desktop-table-pane {
@@ -203,6 +215,23 @@
 
   .mobile-card-actions {
     @apply mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-3;
+  }
+
+  /* Prescription cards — 3 equal tap targets, stay above mobile bottom nav */
+  .rx-mobile-actions {
+    @apply grid grid-cols-3 gap-2;
+  }
+
+  .rx-mobile-actions > button {
+    @apply flex min-h-[4.25rem] w-full flex-col items-center justify-center gap-1.5 rounded-xl px-1 py-2.5 text-center text-[11px] font-semibold leading-tight;
+  }
+
+  .lab-mobile-actions {
+    @apply grid grid-cols-[1fr_auto] items-center gap-2;
+  }
+
+  .lab-mobile-actions select {
+    @apply min-w-0 w-full;
   }
 
   .list-page-error {
@@ -226,7 +255,7 @@
   }
 
   .da-mobile-sheet-body {
-    @apply thin-scrollbar flex-1 overflow-y-auto;
+    @apply flex-1 overflow-y-auto;
   }
 
   .da-mobile-sheet-footer {

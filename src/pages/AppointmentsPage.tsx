@@ -507,7 +507,7 @@ export function AppointmentsPage() {
                 {modal === 'create' ? t('appointments.modalCreate') : t('appointments.modalEdit')}
               </h2>
             </div>
-            <div className="da-mobile-sheet-body space-y-5 p-4 sm:p-6">
+            <div className="da-mobile-sheet-body thin-scrollbar space-y-5 p-4 sm:p-6">
               <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
                 {t('appointments.fieldPatient')}
                 <select value={patientId || ''} onChange={(e) => setPatientId(Number(e.target.value))} className="da-input cursor-pointer bg-white">

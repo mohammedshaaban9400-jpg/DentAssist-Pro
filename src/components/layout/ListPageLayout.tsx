@@ -2,7 +2,7 @@ import { forwardRef, type ReactNode } from 'react'
 
 export function ListPageLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="list-page flex h-[calc(100%+1.5rem)] flex-col overflow-hidden bg-white -m-3 sm:-m-5 sm:h-[calc(100%+2.5rem)] md:-m-8 md:h-[calc(100%+4rem)]">
+    <div className="list-page flex min-h-0 flex-col bg-white -m-3 sm:-m-5 md:-m-8 md:h-[calc(100%+4rem)] md:overflow-hidden">
       {children}
     </div>
   )
@@ -38,8 +38,8 @@ export function MobileCard({ children, className = '' }: { children: ReactNode; 
   return <article className={`mobile-card ${className}`.trim()}>{children}</article>
 }
 
-export function MobileCardActions({ children }: { children: ReactNode }) {
-  return <div className="mobile-card-actions">{children}</div>
+export function MobileCardActions({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <div className={`mobile-card-actions ${className}`.trim()}>{children}</div>
 }
 
 export function MobileEmptyState({ icon: Icon, children }: { icon: React.ElementType; children: ReactNode }) {

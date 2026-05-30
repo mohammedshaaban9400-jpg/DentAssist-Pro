@@ -291,6 +291,7 @@
   "print": {
     "rxTitle": "Prescription",
     "reprint": "Re-print",
+    "printShort": "Print",
     "actions": "Actions"
   },
   "invoices": {

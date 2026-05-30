@@ -3,13 +3,35 @@ import { useTranslation } from 'react-i18next'
 import { Plus, Search, Truck, CheckCircle2, Clock, AlertCircle, Trash2 } from 'lucide-react'
 import { listLabOrders, createLabOrder, updateLabOrderStatus, deleteLabOrder, type LabOrderRow } from '@/services/dbService'
 import {
-  DesktopTableScroll,
+  DesktopTablePane,
   ListPageHeader,
   ListPageLayout,
   ListPageToolbar,
+  MobileCard,
+  MobileCardActions,
+  MobileCardList,
+  MobileEmptyState,
 } from '@/components/layout/ListPageLayout'
 
 type LabOrderStatus = 'progress' | 'received' | 'delayed'
+
+function statusSelectClass(status: LabOrderStatus): string {
+  if (status === 'progress') return '!bg-amber-50 !text-amber-700 !border-amber-200'
+  if (status === 'received') return '!bg-teal-50 !text-teal-700 !border-teal-200'
+  return '!bg-rose-50 !text-rose-700 !border-rose-200'
+}
+
+function statusBadgeClass(status: LabOrderStatus): string {
+  if (status === 'progress') return 'bg-amber-50 text-amber-700 border-amber-200'
+  if (status === 'received') return 'bg-teal-50 text-teal-700 border-teal-200'
+  return 'bg-rose-50 text-rose-700 border-rose-200'
+}
+
+function statusLabel(status: LabOrderStatus, isAr: boolean): string {
+  if (status === 'progress') return isAr ? 'قيد العمل' : 'In Progress'
+  if (status === 'received') return isAr ? 'تم الاستلام' : 'Received'
+  return isAr ? 'متأخر' : 'Delayed'
+}
 
 export function DentalLabPage() {
   const { i18n } = useTranslation()
@@ -56,7 +78,7 @@ export function DentalLabPage() {
       })
       setModal(false)
       setNewOrder({ patientName: '', labName: '', workType: '', status: 'progress' })
-      loadData()
+      await loadData()
     } catch (e) {
       console.error(e)
     }
@@ -97,7 +119,7 @@ export function DentalLabPage() {
         <button
           type="button"
           onClick={() => setModal(true)}
-          className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg active:scale-95"
+          className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg active:scale-95 sm:w-auto"
           style={{ background: 'linear-gradient(135deg, #0d9488, #0891b2)' }}
         >
           <Plus className="size-4" />
@@ -106,8 +128,8 @@ export function DentalLabPage() {
       </ListPageHeader>
 
       {/* KPI Cards */}
-      <div className="grid gap-4 border-b border-slate-100 bg-slate-50/30 p-6 sm:grid-cols-3">
-        <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+      <div className="list-page-kpi-grid">
+        <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
           <div className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
               <Clock className="size-5" />
@@ -118,7 +140,7 @@ export function DentalLabPage() {
             </div>
           </div>
         </div>
-        <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
           <div className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-xl bg-teal-50 text-teal-600">
               <CheckCircle2 className="size-5" />
@@ -129,7 +151,7 @@ export function DentalLabPage() {
             </div>
           </div>
         </div>
-        <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-slate-100 bg-white shadow-sm">
           <div className="flex items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
               <AlertCircle className="size-5" />
@@ -144,7 +166,7 @@ export function DentalLabPage() {
 
       <ListPageToolbar>
         <h2 className="font-semibold text-slate-800">{isAr ? 'الأعمال الحالية' : 'Current Orders'}</h2>
-        <div className="relative w-full max-w-xs">
+        <div className="relative w-full sm:max-w-xs">
           <Search className="absolute top-1/2 size-4 -translate-y-1/2 text-slate-400 start-3" />
           <input
             type="text"
@@ -156,8 +178,62 @@ export function DentalLabPage() {
         </div>
       </ListPageToolbar>
 
-      {/* Table Section */}
-      <DesktopTableScroll>
+      <MobileCardList>
+        {loading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <MobileCard key={i}>
+              <div className="h-4 w-2/3 animate-pulse rounded bg-slate-100" />
+              <div className="mt-2 h-3 w-1/2 animate-pulse rounded bg-slate-100" />
+            </MobileCard>
+          ))
+        ) : orders.length === 0 ? (
+          <MobileEmptyState icon={Truck}>
+            {isAr ? 'لا توجد أعمال مخبرية مسجلة' : 'No lab orders recorded'}
+          </MobileEmptyState>
+        ) : (
+          orders.map((o) => (
+            <MobileCard key={o.id}>
+              <div className="flex items-start justify-between gap-2">
+                <span className="font-mono text-xs font-semibold text-slate-500">{o.order_id}</span>
+                <span
+                  className={`inline-flex shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusBadgeClass(o.status)}`}
+                >
+                  {statusLabel(o.status, isAr)}
+                </span>
+              </div>
+              <p className="mt-2 font-bold text-slate-900">{o.patient_name}</p>
+              <p className="mt-1 text-sm text-slate-600">{o.lab_name}</p>
+              <p className="mt-0.5 text-sm font-medium text-teal-700">{o.work_type}</p>
+              <p className="mt-1 text-xs text-slate-500">
+                {isAr ? 'تاريخ الإرسال:' : 'Sent:'} {o.sent_date}
+              </p>
+              <MobileCardActions className="lab-mobile-actions">
+                <select
+                  value={o.status}
+                  onChange={(e) => void handleUpdateStatus(o.id, e.target.value as LabOrderStatus)}
+                  className={`da-input !py-2 !text-xs font-semibold ${statusSelectClass(o.status)}`}
+                  aria-label={isAr ? 'تحديث الحالة' : 'Update status'}
+                >
+                  <option value="progress">{isAr ? 'قيد العمل' : 'In Progress'}</option>
+                  <option value="received">{isAr ? 'تم الاستلام' : 'Received'}</option>
+                  <option value="delayed">{isAr ? 'متأخر' : 'Delayed'}</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => void handleDelete(o.id)}
+                  className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100"
+                  title={isAr ? 'حذف' : 'Delete'}
+                  aria-label={isAr ? 'حذف' : 'Delete'}
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              </MobileCardActions>
+            </MobileCard>
+          ))
+        )}
+      </MobileCardList>
+
+      <DesktopTablePane>
         <table className="w-full text-sm text-slate-600 min-w-[900px]">
           <thead className="sticky top-0 z-10 border-b border-slate-100 bg-white shadow-[0_1px_0_0_#f1f5f9]">
             <tr>
@@ -198,11 +274,7 @@ export function DentalLabPage() {
                     <select
                       value={o.status}
                       onChange={e => handleUpdateStatus(o.id, e.target.value as LabOrderStatus)}
-                      className={`da-input !py-1.5 !text-xs font-semibold !w-auto ${
-                        o.status === 'progress' ? '!bg-amber-50 !text-amber-700 !border-amber-200' :
-                        o.status === 'received' ? '!bg-teal-50 !text-teal-700 !border-teal-200' :
-                        '!bg-rose-50 !text-rose-700 !border-rose-200'
-                      }`}
+                      className={`da-input !py-1.5 !text-xs font-semibold !w-auto ${statusSelectClass(o.status)}`}
                     >
                       <option value="progress" className="text-slate-700">{isAr ? 'قيد العمل' : 'In Progress'}</option>
                       <option value="received" className="text-slate-700">{isAr ? 'تم الاستلام' : 'Received'}</option>
@@ -223,17 +295,17 @@ export function DentalLabPage() {
             )}
           </tbody>
         </table>
-      </DesktopTableScroll>
+      </DesktopTablePane>
 
-      {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
-            <div className="border-b border-slate-100 px-6 py-5">
-              <h2 className="text-lg font-bold text-slate-900">
+      {modal ? (
+        <div className="da-mobile-sheet-overlay">
+          <div className="da-mobile-sheet max-w-md">
+            <div className="shrink-0 border-b border-slate-100 px-4 py-4 sm:px-6 sm:py-5">
+              <h2 className="text-base font-bold text-slate-900">
                 {isAr ? 'عمل مخبري جديد' : 'New Lab Order'}
               </h2>
             </div>
-            <div className="space-y-4 p-6">
+            <div className="da-mobile-sheet-body thin-scrollbar space-y-4 p-4 sm:p-6">
               <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
                 {isAr ? 'اسم المريض' : 'Patient Name'}
                 <input
@@ -276,7 +348,7 @@ export function DentalLabPage() {
                 </select>
               </label>
             </div>
-            <div className="flex justify-end gap-3 border-t border-slate-100 px-6 py-4 bg-slate-50/50 rounded-b-2xl">
+            <div className="da-mobile-sheet-footer">
               <button
                 type="button"
                 onClick={() => setModal(false)}
@@ -286,7 +358,7 @@ export function DentalLabPage() {
               </button>
               <button
                 type="button"
-                onClick={handleAdd}
+                onClick={() => void handleAdd()}
                 disabled={!newOrder.patientName || !newOrder.labName || !newOrder.workType}
                 className="inline-flex cursor-pointer items-center justify-center rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all active:scale-95 disabled:opacity-50"
                 style={{ background: 'linear-gradient(135deg, #0d9488, #0891b2)' }}
@@ -296,7 +368,7 @@ export function DentalLabPage() {
             </div>
           </div>
         </div>
-      )}
+      ) : null}
     </ListPageLayout>
   )
 }

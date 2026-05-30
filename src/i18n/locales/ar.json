@@ -291,6 +291,7 @@
   "print": {
     "rxTitle": "وصفة طبية",
     "reprint": "إعادة طباعة",
+    "printShort": "طباعة",
     "actions": "إجراءات"
   },
   "invoices": {
