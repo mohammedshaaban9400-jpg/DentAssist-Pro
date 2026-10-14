@@ -1,7 +1,15 @@
 import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useSearchParams } from 'react-router-dom'
-import { BookOpen, Code2, FileText, Heart, Phone, Scale, Shield } from 'lucide-react'
+import {
+  Award,
+  BookOpen,
+  Code2,
+  Heart,
+  Phone,
+  Scale,
+  Shield,
+} from 'lucide-react'
 import { DocsArticle } from '@/components/DocsArticle'
 import { DOC_LAST_UPDATED, getDocumentationSections, type DocId } from '@/legal/clinicDocumentation'
 import packageJson from '../../package.json'
@@ -18,6 +26,7 @@ function isAboutTab(v: string | null): v is AboutTab {
 export function AboutPage() {
   const { t, i18n } = useTranslation()
   const lang = i18n.language === 'en' ? 'en' : 'ar'
+  const isAr = lang === 'ar'
   const [searchParams, setSearchParams] = useSearchParams()
 
   const tab: AboutTab = useMemo(() => {
@@ -29,11 +38,11 @@ export function AboutPage() {
   useEffect(() => {
     document.title =
       tab === 'about'
-        ? lang === 'ar'
-          ? 'حول — DentAssist Pro'
+        ? isAr
+          ? 'حول النظام — DentAssist Pro'
           : 'About — DentAssist Pro'
         : `${t(`aboutDocs.tab.${tab}`)} — DentAssist Pro`
-  }, [tab, lang, t])
+  }, [tab, isAr, t])
 
   const setTab = (next: AboutTab) => {
     if (next === 'about') setSearchParams({}, { replace: true })
@@ -43,23 +52,26 @@ export function AboutPage() {
   const docSections = tab !== 'about' ? getDocumentationSections(tab) : []
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+    <div className="mx-auto max-w-4xl space-y-4 pb-12">
+      {/* ─── Header ─── */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">{t('aboutDocs.pageTitle')}</h1>
-          <p className="mt-1 text-sm text-slate-500">{t('aboutDocs.pageSubtitle')}</p>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+            {t('aboutDocs.pageTitle', isAr ? 'حول النظام والتوثيق' : 'About DentAssist Pro')}
+          </h1>
+          <p className="mt-0.5 text-xs text-slate-500 font-medium">
+            {t('aboutDocs.pageSubtitle', isAr ? 'معلومات الإصدار، المطور، والتراخيص الطبية' : 'System details & documentation')}
+          </p>
         </div>
-        <p className="text-xs font-medium text-slate-400 tabular-nums">
+        <p className="text-[11px] font-bold text-slate-400 tabular-nums">
           {t('aboutDocs.lastUpdated', { date: DOC_LAST_UPDATED })}
         </p>
       </div>
 
-      {/* Tabs */}
+      {/* ─── Tab Bar ─── */}
       <div
-        className="flex flex-wrap gap-1 rounded-2xl p-1 shadow-sm ring-1 ring-slate-200/80"
-        style={{ background: '#f8fafc' }}
+        className="flex flex-wrap gap-1 rounded-2xl p-1 bg-slate-100/80 ring-1 ring-slate-200/60"
         role="tablist"
-        aria-label={t('aboutDocs.pageTitle')}
       >
         {TAB_IDS.map((id) => {
           const active = tab === id
@@ -78,110 +90,124 @@ export function AboutPage() {
               role="tab"
               aria-selected={active}
               onClick={() => setTab(id)}
-              className={[
-                'inline-flex min-h-[40px] cursor-pointer items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all',
+              className={`inline-flex min-h-[38px] cursor-pointer items-center gap-2 rounded-xl px-4 py-1.5 text-xs font-bold transition-all ${
                 active
-                  ? 'bg-white text-teal-800 shadow-sm ring-1 ring-slate-200/90'
-                  : 'text-slate-600 hover:bg-white/70 hover:text-slate-900',
-              ].join(' ')}
+                  ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-200/60'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
             >
-              <Icon className="size-4 shrink-0 opacity-80" aria-hidden />
-              {t(`aboutDocs.tab.${id}`)}
+              <Icon className="size-4 shrink-0 opacity-80" />
+              <span>{t(`aboutDocs.tab.${id}`)}</span>
             </button>
           )
         })}
       </div>
 
+      {/* ─── Tab Content ─── */}
       {tab === 'about' ? (
-        <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
-          <div className="flex items-center gap-4 border-b border-slate-100 px-6 py-5">
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xs">
+          {/* App Header Banner */}
+          <div className="flex items-center gap-4 border-b border-slate-100 bg-slate-50/50 px-6 py-5">
             <div
-              className="flex size-10 shrink-0 items-center justify-center rounded-xl shadow-sm"
-              style={{ background: 'linear-gradient(135deg, #0d1424, #1e3a5f)' }}
+              className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-white border border-slate-200/80 shadow-2xs"
             >
-              <Code2 className="size-5 text-white" aria-hidden />
+              <img
+                src={defaultAppLogoSrc()}
+                alt=""
+                className="size-11 object-contain p-1"
+                onError={(e) => applyAppLogoFallback(e.currentTarget)}
+              />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-slate-900">{t('aboutDocs.cardAppTitle')}</h2>
-              <p className="mt-0.5 text-xs text-slate-500">{t('aboutDocs.cardAppSubtitle')}</p>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-slate-900">DentAssist Pro</h2>
+                <span className="rounded-full bg-teal-50 border border-teal-200/80 px-2 py-0.2 text-[10px] font-bold text-teal-800 font-mono">
+                  v{packageJson.version}
+                </span>
+              </div>
+              <p className="mt-0.5 text-xs text-slate-500 font-medium">
+                {t('aboutDocs.tagline', isAr ? 'نظام الإدارة السريرية الشامل لعيادات طب وجراحة الأسنان' : 'Next-Generation Dental Practice Software')}
+              </p>
             </div>
           </div>
-          <div className="space-y-5 px-6 py-6">
-            <div className="flex items-center gap-4">
-              <div
-                className="flex size-14 shrink-0 items-center justify-center rounded-2xl shadow-md"
-                style={{ background: 'linear-gradient(135deg, #0d9488, #0891b2)' }}
-              >
-                <img
-                  src={defaultAppLogoSrc()}
-                  alt=""
-                  className="size-9"
-                  onError={(e) => applyAppLogoFallback(e.currentTarget)}
-                />
-              </div>
-              <div>
-                <p className="text-lg font-bold text-slate-900">DentAssist Pro</p>
-                <p className="text-xs text-slate-500">{t('aboutDocs.tagline')}</p>
-                <p className="mt-0.5 text-xs font-mono text-teal-600">v{packageJson.version}</p>
+
+          <div className="space-y-5 p-6">
+            {/* Developer Card */}
+            <div className="relative overflow-hidden rounded-2xl border border-teal-200/80 bg-gradient-to-br from-teal-50/70 via-cyan-50/50 to-white p-5 shadow-2xs">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-teal-700">
+                    {t('aboutDocs.developerLabel', isAr ? 'المطور والمهندس المسؤول' : 'Software Architect')}
+                  </p>
+                  <p className="mt-1 text-base font-extrabold text-slate-900">
+                    {t('aboutDocs.developerName', isAr ? 'المهندس محمد شعبان ريمه' : 'Eng. Muhammad Sha\'ban Rima')}
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-600">
+                    {isAr ? 'تطوير حلول البرمجيات الطبية المتقدمة والأنظمة السريرية' : 'Advanced Clinical Software Engineering'}
+                  </p>
+
+                  <div className="mt-3 flex items-center gap-2">
+                    <Phone className="size-3.5 text-teal-600 shrink-0" />
+                    <span className="font-mono text-xs font-bold text-slate-800 tabular-nums">
+                      00963981061026
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-teal-600 text-white shadow-sm">
+                  <Award className="size-5.5" />
+                </div>
               </div>
             </div>
 
-            <div
-              className="rounded-2xl p-5"
-              style={{ background: 'linear-gradient(135deg, #f0fdfa, #e0f2fe)', border: '1px solid #a5f3fc' }}
-            >
-              <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-teal-600">
-                {t('aboutDocs.developerLabel')}
-              </p>
-              <p className="text-base font-bold text-slate-900">{t('aboutDocs.developerName')}</p>
-              <div className="mt-3 flex items-center gap-2.5">
-                <Phone className="size-3.5 shrink-0 text-teal-600" />
-                <span className="font-mono text-sm font-semibold text-slate-700 tabular-nums">00963981061026</span>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-3">
+            {/* Quick Document Links */}
+            <div className="flex flex-wrap gap-2.5">
               <Link
                 to="/about?tab=privacy"
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-700 transition hover:border-teal-300 hover:bg-teal-50/50 hover:text-teal-900"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-2xs hover:border-teal-300 hover:bg-teal-50 hover:text-teal-900 transition no-underline"
               >
-                <Shield className="size-3.5 shrink-0" aria-hidden />
-                {t('aboutDocs.tab.privacy')}
+                <Shield className="size-3.5 text-teal-600" />
+                <span>{t('aboutDocs.tab.privacy')}</span>
               </Link>
               <Link
                 to="/about?tab=terms"
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-700 transition hover:border-teal-300 hover:bg-teal-50/50 hover:text-teal-900"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-2xs hover:border-teal-300 hover:bg-teal-50 hover:text-teal-900 transition no-underline"
               >
-                <FileText className="size-3.5 shrink-0" aria-hidden />
-                {t('aboutDocs.tab.terms')}
+                <Scale className="size-3.5 text-teal-600" />
+                <span>{t('aboutDocs.tab.terms')}</span>
               </Link>
               <Link
                 to="/about?tab=guide"
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-700 transition hover:border-teal-300 hover:bg-teal-50/50 hover:text-teal-900"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-2xs hover:border-teal-300 hover:bg-teal-50 hover:text-teal-900 transition no-underline"
               >
-                <BookOpen className="size-3.5 shrink-0" aria-hidden />
-                {t('aboutDocs.tab.guide')}
+                <BookOpen className="size-3.5 text-teal-600" />
+                <span>{t('aboutDocs.tab.guide')}</span>
               </Link>
             </div>
 
-            <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-5 py-4">
-              <div className="flex items-center gap-2 text-xs text-slate-500">
-                <Heart className="size-3.5 shrink-0 text-rose-400" fill="currentColor" />
+            {/* Footer Copyright */}
+            <div className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                <Heart className="size-3.5 text-rose-500" fill="currentColor" />
                 <span>{t('aboutDocs.copyright', { year: new Date().getFullYear() })}</span>
               </div>
-              <p className="mt-2 text-xs leading-relaxed text-slate-400">{t('aboutDocs.copyNotice')}</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-slate-400 font-medium">
+                {t('aboutDocs.copyNotice')}
+              </p>
             </div>
           </div>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
-          <div className="border-b border-slate-100 bg-gradient-to-l from-slate-50/80 to-white px-6 py-4">
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xs">
+          <div className="border-b border-slate-100 bg-slate-50/50 px-6 py-4">
             <h2 className="text-base font-bold text-slate-900">{t(`aboutDocs.tab.${tab}`)}</h2>
-            <p className="mt-1 text-xs leading-relaxed text-slate-500">{t(`aboutDocs.intro.${tab}`)}</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-slate-500 font-medium">
+              {t(`aboutDocs.intro.${tab}`)}
+            </p>
           </div>
-          <div className="px-6 py-8">
+          <div className="p-6">
             <DocsArticle sections={docSections} lang={lang} />
-            <div className="mt-10 rounded-xl border border-amber-100 bg-amber-50/60 px-4 py-3 text-xs leading-relaxed text-amber-950/90">
+            <div className="mt-8 rounded-2xl border border-amber-200/80 bg-amber-50/70 p-4 text-xs font-medium leading-relaxed text-amber-950">
               {t('aboutDocs.legalDisclaimer')}
             </div>
           </div>

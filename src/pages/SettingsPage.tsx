@@ -20,8 +20,18 @@ import {
   Pencil,
   Trash2,
   X,
+  Palette,
+  Type,
+  Check,
+  Sparkles,
+  AlertTriangle,
+  CheckCircle2,
 } from 'lucide-react'
+import CryptoJS from 'crypto-js'
+import { TreatmentCatalogModal } from '@/components/TreatmentCatalogModal'
 import { DataExportCsvSection } from '@/components/DataExportCsvSection'
+import { GoogleDriveSyncSection } from '@/components/GoogleDriveSyncSection'
+import { useThemeStore, FONTS, COLORS, SIDEBAR_THEMES } from '@/stores/themeStore'
 import i18n from '@/i18n'
 import { useConfirm } from '@/hooks/useConfirm'
 import {
@@ -89,6 +99,7 @@ export function SettingsPage() {
   const push = useToastStore((s) => s.push)
   const { confirm, confirmModal } = useConfirm()
   const { setSettings } = useSettingsStore()
+  const { fontId, colorId, sidebarId, setFont, setColor, setSidebar } = useThemeStore()
   const logoInputRef = useRef<HTMLInputElement>(null)
   const restoreFileRef = useRef<HTMLInputElement>(null)
 
@@ -106,6 +117,11 @@ export function SettingsPage() {
   const [restorePass, setRestorePass] = useState('')
   const [restoreBusy, setRestoreBusy] = useState(false)
   const [restoreFileName, setRestoreFileName] = useState('')
+  const [lastBackupDate, setLastBackupDate] = useState<string | null>(
+    localStorage.getItem('dentassist_last_backup_date') || null
+  )
+  const [verifying, setVerifying] = useState(false)
+  const [catalogModalOpen, setCatalogModalOpen] = useState(false)
 
   const isWeb = isWebAppBuild()
   const backupSupported = supportsEncryptedBackup()
@@ -133,7 +149,7 @@ export function SettingsPage() {
   useEffect(() => {
     void (async () => {
       try {
-        const keys = ['language', 'clinic_name', 'clinic_phone', 'clinic_address', 'clinic_logo_path', 'currency', 'exchange_rate']
+        const keys = ['language', 'clinic_name', 'clinic_phone', 'clinic_address', 'clinic_logo_path', 'currency', 'exchange_rate', 'last_backup_date']
         const cfg = await getConfigs(keys)
         setLang(cfg.language === 'en' ? 'en' : 'ar')
         setCurrency(cfg.currency ?? 'USD')
@@ -141,6 +157,10 @@ export function SettingsPage() {
         setClinicName(cfg.clinic_name ?? '')
         setClinicPhone(cfg.clinic_phone ?? '')
         setClinicAddress(cfg.clinic_address ?? '')
+        if (cfg.last_backup_date) {
+          setLastBackupDate(cfg.last_backup_date)
+          localStorage.setItem('dentassist_last_backup_date', cfg.last_backup_date)
+        }
         const lp = cfg.clinic_logo_path?.trim() || null
         setLogoPath(lp)
         if (lp) {
@@ -280,6 +300,10 @@ export function SettingsPage() {
     try {
       const r = await exportDatabaseBackupEncrypted(backupPass)
       if (r.ok) {
+        const nowIso = new Date().toISOString()
+        setLastBackupDate(nowIso)
+        localStorage.setItem('dentassist_last_backup_date', nowIso)
+        void setConfig('last_backup_date', nowIso)
         push(
           isWeb
             ? t('settings.backupDoneWeb', { path: r.filePath })
@@ -353,6 +377,43 @@ export function SettingsPage() {
     }
   }
 
+  const verifyBackupIntegrity = async () => {
+    if (restorePass.length < 8) {
+      push(i18n.language === 'ar' ? 'أدخل كلمة مرور النسخة (8 رموز على الأقل) لفحصها' : 'Enter backup password (min 8 chars)', 'error')
+      return
+    }
+    const file = restoreFileRef.current?.files?.[0]
+    if (!file) {
+      push(i18n.language === 'ar' ? 'يرجى اختيار ملف النسخة الاحتياطية (.dentassist) أولاً من الزر أعلاه' : 'Please select backup file first', 'error')
+      return
+    }
+    setVerifying(true)
+    try {
+      const text = await file.text()
+      const bytes = CryptoJS.AES.decrypt(text, restorePass)
+      const decrypted = bytes.toString(CryptoJS.enc.Utf8)
+      if (!decrypted) throw new Error('كلمة المرور غير صحيحة أو الملف تالف')
+      const payload = JSON.parse(decrypted)
+      const dateStr = payload.exportedAt ? new Date(payload.exportedAt).toLocaleString(i18n.language === 'ar' ? 'ar-SA' : 'en-US') : 'غير محدد'
+      const filesCount = Array.isArray(payload.appFiles) ? payload.appFiles.length : 0
+      push(
+        i18n.language === 'ar'
+          ? `✅ فحص ناجح: ملف النسخة سليم تماماً! تاريخ التصدير: ${dateStr}، المرفقات: ${filesCount}. كلمة المرور صحيحة وصالحة للاستعادة.`
+          : `✅ Verified: Backup is valid and intact! Exported at: ${dateStr}, Attachments: ${filesCount}. Password is correct and ready for restore.`,
+        'success'
+      )
+    } catch {
+      push(
+        i18n.language === 'ar'
+          ? '❌ فشل الفحص: كلمة المرور غير صحيحة أو الملف تالف.'
+          : '❌ Verification failed: Wrong password or corrupt backup file.',
+        'error'
+      )
+    } finally {
+      setVerifying(false)
+    }
+  }
+
   const startTourAgain = async () => {
     try {
       await setConfig('onboarding_tour_done', '0')
@@ -368,14 +429,14 @@ export function SettingsPage() {
   const restoreReady = restorePassOk && (!isWeb || restoreFileName.length > 0)
 
   return (
-    <div className="-m-5 flex h-[calc(100%+2.5rem)] flex-col bg-white md:-m-8 md:h-[calc(100%+4rem)]">
+    <div className="mx-auto w-full max-w-5xl space-y-6 pb-6">
       {/* Header */}
-      <div className="flex flex-col gap-4 border-b border-slate-200 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-xl font-bold tracking-tight text-slate-800">{t('settings.title')}</h1>
+      <div className="flex flex-col gap-1 border-b border-slate-200/80 pb-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-slate-900">{t('settings.title')}</h1>
+          <p className="mt-0.5 text-xs text-slate-500">{t('settings.subtitle')}</p>
+        </div>
       </div>
-      
-      <div className="flex-1 overflow-auto p-6 space-y-6">
-        <p className="text-sm text-slate-500 mb-6">{t('settings.subtitle')}</p>
 
         <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-100">
           <div className="flex items-center gap-4 border-b border-slate-100 px-6 py-5">
@@ -459,6 +520,224 @@ export function SettingsPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Appearance, Fonts & Colors ── */}
+      <SectionCard
+        icon={Palette}
+        title={t('settings.appearanceTitle', 'المظهر والخطوط والألوان')}
+        subtitle={t('settings.appearanceSubtitle', 'تخصيص الخط الرئيسي وألوان التطبيق والشريط الجانبي حسب ذوقك.')}
+        iconGradient="linear-gradient(135deg, var(--color-primary), #6366f1)"
+      >
+        {/* Font Selector */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Type className="size-4 text-slate-500" />
+            <h3 className="text-sm font-bold text-slate-800">
+              {t('settings.fontSectionTitle', 'نوع الخط (Typography)')}
+            </h3>
+          </div>
+          <p className="text-xs text-slate-500">
+            {t('settings.fontSectionHint', 'يتم تطبيق الخط فوراً على كافة صفحات وأزرار وجداول التطبيق.')}
+          </p>
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+            {FONTS.map((font) => {
+              const isSelected = fontId === font.id
+              return (
+                <button
+                  key={font.id}
+                  type="button"
+                  onClick={() => setFont(font.id)}
+                  className={`group relative flex flex-col items-start rounded-xl p-3.5 text-right transition-all border ${
+                    isSelected
+                      ? 'border-teal-500 bg-teal-50/40 shadow-sm ring-1 ring-teal-500'
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60'
+                  }`}
+                  style={isSelected ? { borderColor: 'var(--color-primary)', boxShadow: '0 0 0 1px var(--color-primary)' } : {}}
+                >
+                  <div className="flex w-full items-center justify-between">
+                    <span
+                      className="text-sm font-bold text-slate-800"
+                      style={{ fontFamily: font.family }}
+                    >
+                      {lang === 'ar' ? font.nameAr : font.nameEn}
+                    </span>
+                    {isSelected && (
+                      <span
+                        className="flex size-5 items-center justify-center rounded-full text-white"
+                        style={{ background: 'var(--color-primary)' }}
+                      >
+                        <Check className="size-3 stroke-[3]" />
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    className="mt-1 text-xs text-slate-500 transition-colors group-hover:text-slate-700"
+                    style={{ fontFamily: font.family }}
+                  >
+                    {font.sampleText}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Primary Accent Color Swatches */}
+        <div className="space-y-3 border-t border-slate-100 pt-5">
+          <div className="flex items-center gap-2">
+            <Palette className="size-4 text-slate-500" />
+            <h3 className="text-sm font-bold text-slate-800">
+              {t('settings.colorSectionTitle', 'اللون الأساسي (Primary Color)')}
+            </h3>
+          </div>
+          <p className="text-xs text-slate-500">
+            {t('settings.colorSectionHint', 'اللون المعتمد للأزرار النشطة والتأكيدات والرسوم البيانية.')}
+          </p>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+            {COLORS.map((color) => {
+              const isSelected = colorId === color.id
+              return (
+                <button
+                  key={color.id}
+                  type="button"
+                  onClick={() => setColor(color.id)}
+                  className={`flex items-center gap-3 rounded-xl p-3 transition-all border text-right ${
+                    isSelected
+                      ? 'border-slate-800 bg-slate-50 shadow-sm ring-2 ring-slate-800/10'
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60'
+                  }`}
+                >
+                  <span
+                    className="flex size-7 shrink-0 items-center justify-center rounded-full shadow-sm text-white transition-transform"
+                    style={{ background: color.primary }}
+                  >
+                    {isSelected && <Check className="size-3.5 stroke-[3]" />}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-bold text-slate-800">
+                      {lang === 'ar' ? color.nameAr : color.nameEn}
+                    </span>
+                    <span className="block text-[10px] text-slate-400 font-mono uppercase">
+                      {color.primary}
+                    </span>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Sidebar Background Themes */}
+        <div className="space-y-3 border-t border-slate-100 pt-5">
+          <div className="flex items-center gap-2">
+            <Sparkles className="size-4 text-slate-500" />
+            <h3 className="text-sm font-bold text-slate-800">
+              {t('settings.sidebarSectionTitle', 'طابع الشريط الجانبي (Sidebar Theme)')}
+            </h3>
+          </div>
+          <p className="text-xs text-slate-500">
+            {t('settings.sidebarSectionHint', 'تنسيق خلفية القائمة الجانبية بين الطابع الداكن والنيلي والفاتح.')}
+          </p>
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
+            {SIDEBAR_THEMES.map((theme) => {
+              const isSelected = sidebarId === theme.id
+              return (
+                <button
+                  key={theme.id}
+                  type="button"
+                  onClick={() => setSidebar(theme.id)}
+                  className={`group flex flex-col rounded-xl p-3 text-right transition-all border ${
+                    isSelected
+                      ? 'border-slate-800 bg-slate-50 shadow-sm ring-2 ring-slate-800/10'
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/60'
+                  }`}
+                >
+                  {/* Mini preview bar */}
+                  <div
+                    className="relative mb-2.5 h-12 w-full rounded-lg overflow-hidden p-2 flex flex-col justify-between border"
+                    style={{
+                      background: `linear-gradient(180deg, ${theme.from}, ${theme.to})`,
+                      borderColor: theme.border,
+                    }}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <div
+                        className="size-2 rounded-full"
+                        style={{ background: 'var(--color-primary)' }}
+                      />
+                      <div
+                        className="h-1.5 w-10 rounded-full"
+                        style={{ background: theme.isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.2)' }}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <div
+                        className="h-1 w-12 rounded-full"
+                        style={{ background: theme.isLight ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.15)' }}
+                      />
+                      <div
+                        className="h-1 w-8 rounded-full"
+                        style={{ background: theme.isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.1)' }}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="truncate text-xs font-bold text-slate-800">
+                      {lang === 'ar' ? theme.nameAr : theme.nameEn}
+                    </span>
+                    {isSelected && (
+                      <span
+                        className="flex size-4 items-center justify-center rounded-full text-white"
+                        style={{ background: 'var(--color-primary)' }}
+                      >
+                        <Check className="size-2.5 stroke-[3]" />
+                      </span>
+                    )}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Live Preview Sample */}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+          <div className="flex items-center gap-3">
+            <div
+              className="flex size-9 items-center justify-center rounded-xl text-white shadow-sm"
+              style={{ background: 'var(--color-primary)' }}
+            >
+              <Sparkles className="size-4" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-slate-800">
+                {t('settings.livePreviewTitle', 'معاينة حية للمظهر')}
+              </h4>
+              <p className="text-[11px] text-slate-500">
+                {lang === 'ar' ? 'خط النصوص والألوان تنعكس فوراً في جميع الشاشات والأزرار.' : 'Typography and theme colors reflect immediately across all screens and buttons.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
+              style={{
+                background: 'var(--color-primary-light)',
+                color: 'var(--color-primary)',
+              }}
+            >
+              <span className="size-1.5 rounded-full" style={{ background: 'var(--color-primary)' }} />
+              {t('settings.livePreviewBadge', 'نشط ومفعل')}
+            </span>
+            <button
+              type="button"
+              className="da-btn-primary px-3 py-1.5 text-xs shadow-sm"
+            >
+              {t('settings.livePreviewBtn', 'زر تجريبي')}
+            </button>
+          </div>
+        </div>
+      </SectionCard>
 
       <SectionCard
         icon={BookOpen}
@@ -651,6 +930,35 @@ export function SettingsPage() {
             </div>
           </SectionCard>
 
+          {/* ── Treatment Catalog & Fee Schedule ── */}
+          <SectionCard
+            icon={FileSpreadsheet}
+            title={i18n.language === 'ar' ? 'دليل أسعار وإجراءات العيادة (Treatment Catalog)' : 'Clinic Treatment Catalog & Fee Schedule'}
+            subtitle={i18n.language === 'ar' ? 'إدارة قائمة الخدمات السريرية والأسعار التقديرية المعتمدة لملئها تلقائياً في خطط العلاج' : 'Standardized clinic procedures & pricing for auto-filling treatment plans'}
+            iconGradient="linear-gradient(135deg, #0d9488, #059669)"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border border-teal-100 bg-teal-50/50 p-4">
+              <div className="space-y-1">
+                <p className="text-sm font-bold text-teal-950">
+                  {i18n.language === 'ar' ? 'دليل موحد للإجراءات والأسعار المعتمدة' : 'Unified Clinical Procedure Catalog'}
+                </p>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {i18n.language === 'ar'
+                    ? 'يتضمن أكثر من 22 إجراءً سريرياً معيارياً (حشوات كمبوزيت، علاج عصب، تيجان زيركون وإيماكس، زراعة أسنان، جراحة، ولثة) يتم تنزيل أسعارها وأوصافها تلقائياً عند إضافة مرحلة علاجية للمريض.'
+                    : 'Pre-configured with clinical procedures (fillings, endo, crowns, implants, surgery, perio) that auto-fill descriptions and costs in patient treatment plans.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCatalogModalOpen(true)}
+                className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-700 active:scale-95 cursor-pointer"
+              >
+                <Sparkles className="size-4" />
+                {i18n.language === 'ar' ? 'فتح وإدارة قائمة الأسعار' : 'Open Fee Catalog'}
+              </button>
+            </div>
+          </SectionCard>
+
           {/* ── Backup ── */}
           <SectionCard
             icon={Database}
@@ -679,6 +987,48 @@ export function SettingsPage() {
               </button>
             }
           >
+            {/* Last Backup Status Health Bar */}
+            <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border p-4 ${
+              lastBackupDate && (Date.now() - new Date(lastBackupDate).getTime() < 7 * 24 * 3600 * 1000)
+                ? 'border-emerald-200 bg-emerald-50/70 text-emerald-950'
+                : 'border-amber-200 bg-amber-50/70 text-amber-950'
+            }`}>
+              <div className="flex items-center gap-3">
+                {lastBackupDate && (Date.now() - new Date(lastBackupDate).getTime() < 7 * 24 * 3600 * 1000) ? (
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                    <CheckCircle2 className="size-5.5" />
+                  </div>
+                ) : (
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                    <AlertTriangle className="size-5.5" />
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs font-bold">
+                    {lastBackupDate && (Date.now() - new Date(lastBackupDate).getTime() < 7 * 24 * 3600 * 1000)
+                      ? (i18n.language === 'ar' ? 'حالة الأمان: بيانات العيادة محمية بنسخة احتياطية حديثة' : 'Security Status: Clinic data is protected with recent backup')
+                      : (i18n.language === 'ar' ? 'تنبيه أمان: يُوصى بأخذ نسخة احتياطية جديدة لحماية السجلات' : 'Security Alert: New backup recommended')}
+                  </p>
+                  <p className="text-[11px] opacity-80 mt-0.5">
+                    {lastBackupDate
+                      ? (i18n.language === 'ar'
+                          ? `آخر موعد تم فيه النسخ: ${new Date(lastBackupDate).toLocaleString('ar-SA')}`
+                          : `Last backup: ${new Date(lastBackupDate).toLocaleString('en-US')}`)
+                      : (i18n.language === 'ar' ? 'لم يتم تسجيل أي نسخة احتياطية على هذا الجهاز بعد.' : 'No backup registered on this device yet.')}
+                  </p>
+                </div>
+              </div>
+              <span className={`self-start sm:self-center rounded-lg px-2.5 py-1 text-[10px] font-bold ${
+                lastBackupDate && (Date.now() - new Date(lastBackupDate).getTime() < 7 * 24 * 3600 * 1000)
+                  ? 'bg-emerald-200/80 text-emerald-900'
+                  : 'bg-amber-200/80 text-amber-900'
+              }`}>
+                {lastBackupDate && (Date.now() - new Date(lastBackupDate).getTime() < 7 * 24 * 3600 * 1000)
+                  ? (i18n.language === 'ar' ? 'آمن ومحدث' : 'Up to date')
+                  : (i18n.language === 'ar' ? 'مطلوب إجراء نسخة' : 'Action needed')}
+              </span>
+            </div>
+
             {/* Info note */}
             <div className="flex items-start gap-3 rounded-xl border border-teal-100 bg-teal-50/70 px-4 py-3.5">
               <ShieldCheck className="mt-0.5 size-4 shrink-0 text-teal-600" aria-hidden />
@@ -786,9 +1136,28 @@ export function SettingsPage() {
                   )}
                   {i18n.language === 'ar' ? 'استيراد واستعادة' : 'Import & restore'}
                 </button>
+                {isWeb && restoreFileName ? (
+                  <button
+                    type="button"
+                    disabled={verifying || restorePass.length < 8}
+                    onClick={() => void verifyBackupIntegrity()}
+                    className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-teal-200 bg-teal-50 px-3.5 py-2.5 text-xs font-bold text-teal-800 shadow-sm transition hover:bg-teal-100 disabled:opacity-50"
+                    title={i18n.language === 'ar' ? 'فحص صحة كلمة المرور وسلامة الملف دون أي تعديل على قاعدة البيانات' : 'Test password and file integrity without modifying current database'}
+                  >
+                    {verifying ? (
+                      <span className="size-3.5 animate-spin rounded-full border-2 border-teal-300 border-t-teal-700" />
+                    ) : (
+                      <ShieldCheck className="size-3.5 text-teal-600" />
+                    )}
+                    <span>{i18n.language === 'ar' ? 'فحص الملف وكلمة المرور' : 'Verify File & Password'}</span>
+                  </button>
+                ) : null}
               </div>
             </div>
           </SectionCard>
+
+          {/* ── Google Drive Cloud Sync ── */}
+          <GoogleDriveSyncSection />
 
           {/* ── User Management ── */}
           <SectionCard
@@ -924,7 +1293,11 @@ export function SettingsPage() {
         </div>
       )}
 
-      </div>
+      <TreatmentCatalogModal
+        isOpen={catalogModalOpen}
+        onClose={() => setCatalogModalOpen(false)}
+      />
+
       {confirmModal}
     </div>
   )

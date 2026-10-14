@@ -60,12 +60,208 @@ function computeMachineIdInternal(): string {
 export function bootstrapSchema(instance: SqlDatabase): void {
   instance.exec(SCHEMA_SQL)
   migrateTeethStatusSchema(instance)
+  migrateOrthoSchema(instance)
+  migrateImplantsSchema(instance)
+  migrateInventorySchema(instance)
+  migrateTreatmentCatalogSchema(instance)
 }
 
 function migrateTeethStatusSchema(instance: SqlDatabase): void {
   const cols = instance.prepare(`PRAGMA table_info(teeth_status)`).all() as { name: string }[]
   if (!cols.some((c) => c.name === 'preparation_depth_mm')) {
     instance.exec(`ALTER TABLE teeth_status ADD COLUMN preparation_depth_mm REAL`)
+  }
+}
+
+function migrateOrthoSchema(instance: SqlDatabase): void {
+  instance.exec(`
+    CREATE TABLE IF NOT EXISTS orthodontic_cases (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      patient_id INTEGER NOT NULL,
+      case_number TEXT UNIQUE,
+      start_date TEXT NOT NULL,
+      estimated_duration_months INTEGER NOT NULL DEFAULT 18,
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','retention','completed','suspended')),
+      classification TEXT NOT NULL DEFAULT 'class_1',
+      appliance_type TEXT NOT NULL DEFAULT 'metal',
+      arch_type TEXT NOT NULL DEFAULT 'both' CHECK(arch_type IN ('upper','lower','both')),
+      extraction_plan TEXT,
+      chief_complaint TEXT,
+      diagnosis_notes TEXT,
+      total_cost REAL NOT NULL DEFAULT 0,
+      down_payment REAL NOT NULL DEFAULT 0,
+      monthly_installment REAL NOT NULL DEFAULT 0,
+      retainer_type TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS orthodontic_visits (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      case_id INTEGER NOT NULL,
+      visit_number INTEGER NOT NULL DEFAULT 1,
+      visit_date TEXT NOT NULL,
+      upper_wire TEXT,
+      lower_wire TEXT,
+      elastic_prescription TEXT,
+      actions_json TEXT,
+      broken_brackets_count INTEGER NOT NULL DEFAULT 0,
+      oral_hygiene_rating INTEGER NOT NULL DEFAULT 4,
+      pain_level INTEGER NOT NULL DEFAULT 1,
+      amount_paid REAL NOT NULL DEFAULT 0,
+      notes TEXT,
+      next_appointment_date TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (case_id) REFERENCES orthodontic_cases(id) ON DELETE CASCADE
+    );
+  `)
+}
+
+function migrateImplantsSchema(instance: SqlDatabase): void {
+  instance.exec(`
+    CREATE TABLE IF NOT EXISTS dental_implants (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      patient_id INTEGER NOT NULL,
+      tooth_number INTEGER NOT NULL,
+      brand TEXT NOT NULL,
+      model TEXT,
+      diameter_mm REAL NOT NULL,
+      length_mm REAL NOT NULL,
+      lot_number TEXT,
+      serial_number TEXT,
+      insertion_torque_ncm REAL,
+      isq_value REAL,
+      bone_graft_type TEXT,
+      membrane_used INTEGER NOT NULL DEFAULT 0,
+      sinus_lift TEXT,
+      placement_date TEXT NOT NULL,
+      healing_period_months INTEGER NOT NULL DEFAULT 3,
+      target_loading_date TEXT,
+      healing_abutment_date TEXT,
+      healing_abutment_size TEXT,
+      final_loading_date TEXT,
+      prosthetic_type TEXT,
+      status TEXT NOT NULL DEFAULT 'healing' CHECK(status IN ('planned','placed','healing','uncovered','restored','failed')),
+      notes TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE
+    );
+  `)
+}
+
+function migrateInventorySchema(instance: SqlDatabase): void {
+  instance.exec(`
+    CREATE TABLE IF NOT EXISTS inventory_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      category TEXT NOT NULL CHECK(category IN ('anesthesia','composite','endodontics','surgery_implants','impression','sterilization','disposables','other')),
+      specification TEXT,
+      quantity REAL NOT NULL DEFAULT 0,
+      unit TEXT NOT NULL DEFAULT 'قطعة',
+      min_threshold REAL NOT NULL DEFAULT 5,
+      cost_per_unit REAL NOT NULL DEFAULT 0,
+      distributor_id INTEGER,
+      expiry_date TEXT,
+      batch_number TEXT,
+      location TEXT,
+      notes TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (distributor_id) REFERENCES distributors(id) ON DELETE SET NULL
+    );
+  `)
+  try {
+    const countRow = instance.prepare('SELECT COUNT(*) as c FROM inventory_items').get() as { c: number }
+    if (countRow && countRow.c === 0) {
+      const seed = [
+        ['بنج أرتيكائين 4% مع أدرينالين 1:100,000 (Articaine)', 'anesthesia', 'علبة 50 كاربولة - Septodont', 6, 'علبة', 3, 145000, '2027-02-28', 'LOT-98211', 'ثلاجة التخدير'],
+        ['بنج ليدوكائين 2% (Lidocaine 2%)', 'anesthesia', 'علبة 50 كاربولة مع أدرينالين', 4, 'علبة', 2, 95000, '2026-11-15', 'LOT-44120', 'خزانة التخدير'],
+        ['إبر بنج قصيرة (Dental Needles 30G Short)', 'anesthesia', 'علبة 100 إبرة - غيج 30', 5, 'علبة', 2, 45000, '2027-05-20', 'LOT-88123', 'درج التخدير'],
+        ['كمبوزيت نانو هيبريد لون A1 (3M Filtek Z250)', 'composite', 'سيرنج 4غ لون A1', 3, 'سيرنج', 2, 120000, '2026-12-31', 'LOT-Z250-A1', 'درج الحشوات'],
+        ['كمبوزيت نانو هيبريد لون A2 (3M Filtek Z350 XT)', 'composite', 'سيرنج 4غ لون A2 الأكثر طلباً', 8, 'سيرنج', 4, 160000, '2027-03-31', 'LOT-Z350-A2', 'درج الحشوات'],
+        ['كمبوزيت نانو هيبريد لون A3 (3M Filtek Z350 XT)', 'composite', 'سيرنج 4غ لون A3', 5, 'سيرنج', 3, 160000, '2027-04-30', 'LOT-Z350-A3', 'درج الحشوات'],
+        ['كمبوزيت سائل فلو لون A2 (Flowable Composite)', 'composite', 'سيرنج 2غ عالي اللزوجة', 4, 'سيرنج', 2, 85000, '2026-09-30', 'LOT-FLW-88', 'درج الحشوات'],
+        ['حمض التخريش + بوندينغ الجيل الخامس (Bond & Etch)', 'composite', 'علبة زجاجة 5مل + سرنجة حمض', 4, 'علبة', 2, 130000, '2026-10-31', 'LOT-BOND-5', 'درج الحشوات'],
+        ['مبارد روتاري علاج عصب (ProTaper Gold Starter Kit)', 'endodontics', 'باكت 6 مبارد روتاري SX-F3 25mm', 6, 'باكت', 3, 190000, '2028-01-01', 'LOT-PTG-99', 'قسم علاج الجذور'],
+        ['مبارد يدوية K-Files قياس 15-40 (25mm)', 'endodontics', 'علبة مبارد ستانلس ستيل معقمة', 5, 'علبة', 2, 35000, '2028-01-01', 'LOT-KF-1540', 'قسم علاج الجذور'],
+        ['أقماع جوتابركا متدرجة F1, F2, F3 (Gutta Percha)', 'endodontics', 'علبة 60 قمع معقم', 7, 'علبة', 3, 40000, '2027-07-30', 'LOT-GP-60', 'قسم علاج الجذور'],
+        ['سيلر حشو قنوات راتنجي (AH Plus Sealer)', 'endodontics', 'أنبوبتين معجون A + B', 3, 'علبة', 1, 210000, '2026-07-30', 'LOT-AH-102', 'قسم علاج الجذور'],
+        ['قفازات فحص طبية نيتريل مقاس M (Nitrile Gloves M)', 'sterilization', 'كرتونة 100 قفاز خالي من البودرة', 12, 'علبة', 5, 55000, '2027-10-31', 'LOT-GLV-M', 'مستودع التعقيم'],
+        ['قفازات فحص طبية نيتريل مقاس L (Nitrile Gloves L)', 'sterilization', 'كرتونة 100 قفاز خالي من البودرة', 8, 'علبة', 4, 55000, '2027-10-31', 'LOT-GLV-L', 'مستودع التعقيم'],
+        ['أكياس تعقيم أوتوكلاف مقاس 90×260 مم (Pouches)', 'sterilization', 'علبة 200 كيس مع مؤشر حراري', 5, 'علبة', 2, 70000, '2028-06-30', 'LOT-PCH-90', 'غرفة التعقيم'],
+        ['مادة طبعة سيليكون مطاطي ثقيل وخفيف (A-Silicone)', 'impression', 'طقم معجون Putty 400ml + Light Body', 4, 'طقم', 2, 280000, '2026-11-15', 'LOT-SIL-33', 'خزانة الطبعات'],
+        ['ألجينات سريعة التصلب لطبعات الدراسة (Alginate)', 'impression', 'كيس 453غ نكهة نعناع', 6, 'كيس', 3, 45000, '2026-08-31', 'LOT-ALG-5', 'خزانة الطبعات'],
+        ['زرعات سنية Straumann BLX قطر 4.0 طول 10 مم', 'surgery_implants', 'زرعة تيتانيوم معقمة مع ناقل Loxim', 3, 'قطعة', 2, 1100000, '2028-12-31', 'LOT-STR-940', 'خزانة الجراحة'],
+        ['زرعات سنية Osstem TSIII قطر 4.5 طول 11.5 مم', 'surgery_implants', 'زرعة كورية معقمة مع غطاء غلق', 4, 'قطعة', 2, 650000, '2028-09-30', 'LOT-OSS-4511', 'خزانة الجراحة'],
+        ['طعم عظمي بودرة 0.5cc (Bio-Oss Bovine Bone Graft)', 'surgery_implants', 'فيال 0.5 جرام جزيئات صغيرة', 4, 'فيال', 2, 450000, '2027-04-30', 'LOT-BONE-05', 'خزانة الجراحة'],
+      ]
+      const stmt = instance.prepare(`
+        INSERT INTO inventory_items (name, category, specification, quantity, unit, min_threshold, cost_per_unit, expiry_date, batch_number, location)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      for (const item of seed) {
+        stmt.run(...item)
+      }
+    }
+  } catch (err) {
+    console.error('Error seeding inventory items:', err)
+  }
+}
+
+function migrateTreatmentCatalogSchema(instance: SqlDatabase): void {
+  instance.exec(`
+    CREATE TABLE IF NOT EXISTS treatment_catalog (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      category TEXT NOT NULL,
+      code TEXT,
+      name_ar TEXT NOT NULL,
+      name_en TEXT NOT NULL,
+      default_cost REAL NOT NULL DEFAULT 0,
+      description TEXT,
+      duration_minutes INTEGER NOT NULL DEFAULT 30,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `)
+  try {
+    const countRow = instance.prepare('SELECT COUNT(*) as c FROM treatment_catalog').get() as { c: number }
+    if (countRow && countRow.c === 0) {
+      const defaultCatalog = [
+        ['restorative', 'REST-01', 'حشوة ضوئية كمبوزيت سطح واحد', 'Composite Restoration - 1 Surface', 120000, 'تنظيف النخر وترميم تجميلي كمبوزيت نانو هيبريد مع تخريش وبوندينغ وتلميع نهائي', 30],
+        ['restorative', 'REST-02', 'حشوة ضوئية كمبوزيت سطحين (MO/DO)', 'Composite Restoration - 2 Surfaces', 160000, 'ترميم تجويف بين سني مع وضع مسندة مصفوفية وتشكيل نقطة التماس وتلميع', 45],
+        ['restorative', 'REST-03', 'حشوة ضوئية كمبوزيت 3 أسطح فما فوق (MOD)', 'Composite Restoration - 3+ Surfaces', 220000, 'ترميم تجويف واسع وبناء حدبات مع حماية لبية وتشكيل تشريحي دقيق', 60],
+        ['restorative', 'REST-04', 'بناء قلب ودعامة فايبر بوست (Fiber Post & Core)', 'Fiber Post & Core Build-up', 250000, 'تفريغ وتجهيز القناة وتثبيت وتد فايبر مقوى بالراتنج وبناء التاج للتهيئة للغلاف', 45],
+        ['endodontics', 'ENDO-01', 'علاج عصب سن أمامي جلسة واحدة (قناة واحدة)', 'Anterior Root Canal Treatment - Single Visit', 300000, 'استئصال اللب، تحضير روتاري آلي، تعقيم بالأمواج، وحشو القناة بالجوتابركا ثلاثي الأبعاد', 45],
+        ['endodontics', 'ENDO-02', 'علاج عصب ضاحك (قناتين)', 'Premolar Root Canal Treatment', 400000, 'تحضير آلي روتاري لقناتين وتطهير كيميائي ميكانيكي وحشو قنوات', 60],
+        ['endodontics', 'ENDO-03', 'علاج عصب ضرس خلفي (3 - 4 أقنية)', 'Molar Root Canal Treatment', 550000, 'معالجة لبية كاملة لرحى سفلية أو علوية مع كشف الأقنية الإضافية وحشو حراري', 75],
+        ['endodontics', 'ENDO-04', 'إعادة معالجة لبية لضرس (Endo Retreatment)', 'Molar Endodontic Retreatment', 650000, 'إزالة حشوة القنوات القديمة وتجاوز الحصوات وتطهير وحشو قنوات جديد', 90],
+        ['prosthetics', 'PROST-01', 'تاج زيركون كامل تشريحي (Full Zirconia Crown)', 'Monolithic Zirconia Crown', 750000, 'تحضير السن مع خط إنهاء واضح وطبعة دقيقة وتركيب تاج زيركون عالي المتانة والجمالية', 45],
+        ['prosthetics', 'PROST-02', 'تاج إيماكس تجميلي فائق الشفافية (IPS e.max)', 'IPS e.max Ceramic Crown', 900000, 'خزف زجاجي فائق الشفافية والجمالية للأسنان الأمامية مع لصق راتنجي محكم', 45],
+        ['prosthetics', 'PROST-03', 'عدسة أسنان تجميلية فينير (Porcelain Veneer)', 'Dental Ceramic Veneer', 950000, 'تحضير سطحي خفيف للوجه الدهليزي وتركيب قشرة خزفية إيماكس لابتسامة هوليوود', 45],
+        ['prosthetics', 'PROST-04', 'جسر زيركون للسن المفقود (لكل وحدة سنية)', 'Zirconia Bridge Unit', 750000, 'تعويض الأسنان المفقودة بجسر متين من الزيركونيا (سعر الوحدة الواحدة)', 45],
+        ['implants', 'IMP-01', 'زراعة سن جراحية مرحلة أولى (Surgical Placement)', 'Dental Implant Placement (Stage 1)', 2500000, 'غرس زرعة تيتانيوم معقمة في العظم وفق بروتوكول جراحي دقيق مع خياطة', 60],
+        ['implants', 'IMP-02', 'كشف زرعة وتركيب دعامة شفاء (Healing Abutment)', 'Implant Uncovery & Healing Abutment', 200000, 'كشف الزرعة بعد الاندماج العظمي وتركيب مشكّل اللثة لتجهيز الطبعة', 30],
+        ['implants', 'IMP-03', 'دعامة وتاج زيركون نهائي فوق الزرعة (Implant Crown)', 'Implant Custom Abutment & Zirconia Crown', 1200000, 'أخذ طبعة الزرعة بالترانسفير وتركيب الدعامة وتثبيت تاج الزيركون النهائي', 45],
+        ['implants', 'IMP-04', 'تطعيم عظمي جراحي مع غشاء كولاجين (Bone Graft)', 'Guided Bone Regeneration (GBR)', 800000, 'وضع طعم عظمي حول الزرعة أو السن وتغطيته بغشاء ممتص لحفظ الحافة العظمية', 45],
+        ['surgery', 'SURG-01', 'قلع سن بسيط مع تخدير موضعي', 'Simple Tooth Extraction', 100000, 'خلع سن مهدم غير قابل للترميم بلطف مع العناية بالحويصل السني', 20],
+        ['surgery', 'SURG-02', 'قلع جراحي لضرس عقل منطمر عظمياً', 'Surgical Extraction of Impacted Wisdom Tooth', 450000, 'شق جراحي وتفريغ عظمي وفصل الجذور وخياطة جراحية لضرس العقل المدفون', 60],
+        ['periodontics', 'PERIO-01', 'تنظيف لثة وتكلسات وتلميع كامل (Scaling & Polishing)', 'Full Mouth Scaling & Polishing', 150000, 'إزالة التكلسات فوق وتحت اللثوية بالأمواج الصوتية وتلميع الأسنان بمعجون وقائي', 30],
+        ['periodontics', 'PERIO-02', 'تجريف لثة عميق وتخطيط جذور (Root Planing per quadrant)', 'Deep Scaling & Root Planing (Quadrant)', 200000, 'علاج التهابات النسج الداعمة وتجريف الجيوب اللثوية لربع فك', 45],
+        ['cosmetic', 'COSM-01', 'تبييض أسنان عيادي بالضوء/الليزر (In-Office Whitening)', 'In-Office Power Teeth Whitening', 1200000, 'تطبيق جل التبييض المركز مع حماية اللثة والتنشيط الضوئي لتفتيح 6-8 درجات', 60],
+        ['preventive', 'PREV-01', 'تطبيق فلورايد وقائي وسادات ميازيب للأطفال (Sealants)', 'Fluoride Varnish & Pit-Fissure Sealants', 80000, 'حماية أسنان الأطفال من التسوس بوضع سادات الميازيب والورنيش الفلورايدي', 20],
+      ]
+      const stmt = instance.prepare(`
+        INSERT INTO treatment_catalog (category, code, name_ar, name_en, default_cost, description, duration_minutes, is_active)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+      `)
+      for (const item of defaultCatalog) {
+        stmt.run(...item)
+      }
+    }
+  } catch (err) {
+    console.error('Error seeding treatment catalog:', err)
   }
 }
 
@@ -1247,6 +1443,772 @@ function deleteLabOrderImpl(id: number): void {
   getDb().prepare('DELETE FROM lab_orders WHERE id = ?').run(id)
 }
 
+function listOrthodonticCasesImpl(patientId?: number, status?: string, query?: string): unknown[] {
+  const d = getDb()
+  let sql = `
+    SELECT 
+      c.*,
+      p.first_name as patient_first_name,
+      p.last_name as patient_last_name,
+      p.phone as patient_phone,
+      (SELECT COUNT(*) FROM orthodontic_visits v WHERE v.case_id = c.id) as visits_count,
+      (SELECT MAX(v.visit_date) FROM orthodontic_visits v WHERE v.case_id = c.id) as last_visit_date,
+      (SELECT COALESCE(SUM(v.amount_paid), 0) FROM orthodontic_visits v WHERE v.case_id = c.id) + c.down_payment as total_paid
+    FROM orthodontic_cases c
+    JOIN patients p ON p.id = c.patient_id
+    WHERE 1=1
+  `
+  const params: unknown[] = []
+  if (patientId) {
+    sql += ' AND c.patient_id = ?'
+    params.push(patientId)
+  }
+  if (status && status !== 'all') {
+    sql += ' AND c.status = ?'
+    params.push(status)
+  }
+  if (query && query.trim()) {
+    const q = `%${query.trim()}%`
+    sql += ' AND (p.first_name LIKE ? OR p.last_name LIKE ? OR c.case_number LIKE ? OR p.phone LIKE ?)'
+    params.push(q, q, q, q)
+  }
+  sql += ' ORDER BY c.id DESC'
+  const rows = d.prepare(sql).all(...params) as Array<Record<string, unknown>>
+  return rows.map((r) => {
+    const totalCost = Number(r.total_cost || 0)
+    const totalPaid = Number(r.total_paid || 0)
+    return {
+      ...r,
+      total_paid: totalPaid,
+      remaining_balance: Math.max(0, totalCost - totalPaid),
+    }
+  })
+}
+
+function getOrthodonticCaseImpl(id: number): unknown | null {
+  const d = getDb()
+  const sql = `
+    SELECT 
+      c.*,
+      p.first_name as patient_first_name,
+      p.last_name as patient_last_name,
+      p.phone as patient_phone,
+      (SELECT COUNT(*) FROM orthodontic_visits v WHERE v.case_id = c.id) as visits_count,
+      (SELECT MAX(v.visit_date) FROM orthodontic_visits v WHERE v.case_id = c.id) as last_visit_date,
+      (SELECT COALESCE(SUM(v.amount_paid), 0) FROM orthodontic_visits v WHERE v.case_id = c.id) + c.down_payment as total_paid
+    FROM orthodontic_cases c
+    JOIN patients p ON p.id = c.patient_id
+    WHERE c.id = ?
+  `
+  const r = d.prepare(sql).get(id) as Record<string, unknown> | undefined
+  if (!r) return null
+  const totalCost = Number(r.total_cost || 0)
+  const totalPaid = Number(r.total_paid || 0)
+  return {
+    ...r,
+    total_paid: totalPaid,
+    remaining_balance: Math.max(0, totalCost - totalPaid),
+  }
+}
+
+function createOrthodonticCaseImpl(req: {
+  patientId: number
+  startDate: string
+  estimatedDurationMonths?: number
+  status?: string
+  classification?: string
+  applianceType?: string
+  archType?: string
+  extractionPlan?: string | null
+  chiefComplaint?: string | null
+  diagnosisNotes?: string | null
+  totalCost?: number
+  downPayment?: number
+  monthlyInstallment?: number
+  retainerType?: string | null
+}): number {
+  const d = getDb()
+  return d.transaction(() => {
+    const countRow = d.prepare('SELECT COUNT(*) as c FROM orthodontic_cases').get() as { c: number }
+    const nextNum = (countRow?.c || 0) + 1
+    const caseNumber = `ORT-${String(nextNum).padStart(4, '0')}`
+
+    const info = d.prepare(`
+      INSERT INTO orthodontic_cases (
+        patient_id, case_number, start_date, estimated_duration_months,
+        status, classification, appliance_type, arch_type,
+        extraction_plan, chief_complaint, diagnosis_notes,
+        total_cost, down_payment, monthly_installment, retainer_type
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      req.patientId,
+      caseNumber,
+      req.startDate,
+      req.estimatedDurationMonths ?? 18,
+      req.status ?? 'active',
+      req.classification ?? 'class_1',
+      req.applianceType ?? 'metal',
+      req.archType ?? 'both',
+      req.extractionPlan ?? null,
+      req.chiefComplaint ?? null,
+      req.diagnosisNotes ?? null,
+      req.totalCost ?? 0,
+      req.downPayment ?? 0,
+      req.monthlyInstallment ?? 0,
+      req.retainerType ?? null,
+    )
+    return info.lastInsertRowid as number
+  })()
+}
+
+function updateOrthodonticCaseImpl(id: number, req: {
+  startDate?: string
+  estimatedDurationMonths?: number
+  status?: string
+  classification?: string
+  applianceType?: string
+  archType?: string
+  extractionPlan?: string | null
+  chiefComplaint?: string | null
+  diagnosisNotes?: string | null
+  totalCost?: number
+  downPayment?: number
+  monthlyInstallment?: number
+  retainerType?: string | null
+}): void {
+  const d = getDb()
+  const existing = d.prepare('SELECT * FROM orthodontic_cases WHERE id = ?').get(id) as Record<string, unknown> | undefined
+  if (!existing) throw new Error('Orthodontic case not found')
+
+  d.prepare(`
+    UPDATE orthodontic_cases SET
+      start_date = ?,
+      estimated_duration_months = ?,
+      status = ?,
+      classification = ?,
+      appliance_type = ?,
+      arch_type = ?,
+      extraction_plan = ?,
+      chief_complaint = ?,
+      diagnosis_notes = ?,
+      total_cost = ?,
+      down_payment = ?,
+      monthly_installment = ?,
+      retainer_type = ?,
+      updated_at = datetime('now')
+    WHERE id = ?
+  `).run(
+    req.startDate ?? existing.start_date,
+    req.estimatedDurationMonths ?? existing.estimated_duration_months,
+    req.status ?? existing.status,
+    req.classification ?? existing.classification,
+    req.applianceType ?? existing.appliance_type,
+    req.archType ?? existing.arch_type,
+    req.extractionPlan !== undefined ? req.extractionPlan : existing.extraction_plan,
+    req.chiefComplaint !== undefined ? req.chiefComplaint : existing.chief_complaint,
+    req.diagnosisNotes !== undefined ? req.diagnosisNotes : existing.diagnosis_notes,
+    req.totalCost ?? existing.total_cost,
+    req.downPayment ?? existing.down_payment,
+    req.monthlyInstallment ?? existing.monthly_installment,
+    req.retainerType !== undefined ? req.retainerType : existing.retainer_type,
+    id
+  )
+}
+
+function deleteOrthodonticCaseImpl(id: number): void {
+  getDb().prepare('DELETE FROM orthodontic_cases WHERE id = ?').run(id)
+}
+
+function listOrthodonticVisitsImpl(caseId: number): unknown[] {
+  return getDb().prepare(
+    'SELECT * FROM orthodontic_visits WHERE case_id = ? ORDER BY visit_number DESC, visit_date DESC'
+  ).all(caseId)
+}
+
+function createOrthodonticVisitImpl(req: {
+  caseId: number
+  visitDate: string
+  upperWire?: string | null
+  lowerWire?: string | null
+  elasticPrescription?: string | null
+  actionsJson?: string | null
+  brokenBracketsCount?: number
+  oralHygieneRating?: number
+  painLevel?: number
+  amountPaid?: number
+  notes?: string | null
+  nextAppointmentDate?: string | null
+}): number {
+  const d = getDb()
+  return d.transaction(() => {
+    const maxRow = d.prepare('SELECT MAX(visit_number) as max_v FROM orthodontic_visits WHERE case_id = ?').get(req.caseId) as { max_v: number | null }
+    const nextVisitNumber = (maxRow?.max_v ?? 0) + 1
+
+    const info = d.prepare(`
+      INSERT INTO orthodontic_visits (
+        case_id, visit_number, visit_date, upper_wire, lower_wire,
+        elastic_prescription, actions_json, broken_brackets_count,
+        oral_hygiene_rating, pain_level, amount_paid, notes, next_appointment_date
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      req.caseId,
+      nextVisitNumber,
+      req.visitDate,
+      req.upperWire ?? null,
+      req.lowerWire ?? null,
+      req.elasticPrescription ?? null,
+      req.actionsJson ?? null,
+      req.brokenBracketsCount ?? 0,
+      req.oralHygieneRating ?? 4,
+      req.painLevel ?? 1,
+      req.amountPaid ?? 0,
+      req.notes ?? null,
+      req.nextAppointmentDate ?? null
+    )
+    return info.lastInsertRowid as number
+  })()
+}
+
+function updateOrthodonticVisitImpl(id: number, req: {
+  upperWire?: string | null
+  lowerWire?: string | null
+  elasticPrescription?: string | null
+  actionsJson?: string | null
+  brokenBracketsCount?: number
+  oralHygieneRating?: number
+  painLevel?: number
+  amountPaid?: number
+  notes?: string | null
+  nextAppointmentDate?: string | null
+}): void {
+  const d = getDb()
+  const existing = d.prepare('SELECT * FROM orthodontic_visits WHERE id = ?').get(id) as Record<string, unknown> | undefined
+  if (!existing) throw new Error('Orthodontic visit not found')
+
+  d.prepare(`
+    UPDATE orthodontic_visits SET
+      upper_wire = ?,
+      lower_wire = ?,
+      elastic_prescription = ?,
+      actions_json = ?,
+      broken_brackets_count = ?,
+      oral_hygiene_rating = ?,
+      pain_level = ?,
+      amount_paid = ?,
+      notes = ?,
+      next_appointment_date = ?
+    WHERE id = ?
+  `).run(
+    req.upperWire !== undefined ? req.upperWire : existing.upper_wire,
+    req.lowerWire !== undefined ? req.lowerWire : existing.lower_wire,
+    req.elasticPrescription !== undefined ? req.elasticPrescription : existing.elastic_prescription,
+    req.actionsJson !== undefined ? req.actionsJson : existing.actions_json,
+    req.brokenBracketsCount !== undefined ? req.brokenBracketsCount : existing.broken_brackets_count,
+    req.oralHygieneRating !== undefined ? req.oralHygieneRating : existing.oral_hygiene_rating,
+    req.painLevel !== undefined ? req.painLevel : existing.pain_level,
+    req.amountPaid !== undefined ? req.amountPaid : existing.amount_paid,
+    req.notes !== undefined ? req.notes : existing.notes,
+    req.nextAppointmentDate !== undefined ? req.nextAppointmentDate : existing.next_appointment_date,
+    id
+  )
+}
+
+function deleteOrthodonticVisitImpl(id: number): void {
+  getDb().prepare('DELETE FROM orthodontic_visits WHERE id = ?').run(id)
+}
+
+function getOrthodonticStatsImpl(): unknown {
+  const d = getDb()
+  const activeCases = (d.prepare("SELECT COUNT(*) as c FROM orthodontic_cases WHERE status = 'active'").get() as { c: number })?.c ?? 0
+  const retentionCases = (d.prepare("SELECT COUNT(*) as c FROM orthodontic_cases WHERE status = 'retention'").get() as { c: number })?.c ?? 0
+  const completedCases = (d.prepare("SELECT COUNT(*) as c FROM orthodontic_cases WHERE status = 'completed'").get() as { c: number })?.c ?? 0
+  const suspendedCases = (d.prepare("SELECT COUNT(*) as c FROM orthodontic_cases WHERE status = 'suspended'").get() as { c: number })?.c ?? 0
+
+  const totalCostRow = d.prepare("SELECT COALESCE(SUM(total_cost), 0) as s, COALESCE(SUM(down_payment), 0) as dp FROM orthodontic_cases WHERE status != 'suspended'").get() as { s: number; dp: number }
+  const visitsPaidRow = d.prepare("SELECT COALESCE(SUM(amount_paid), 0) as s FROM orthodontic_visits").get() as { s: number }
+
+  const totalRevenue = (totalCostRow?.dp ?? 0) + (visitsPaidRow?.s ?? 0)
+  const totalDebt = Math.max(0, (totalCostRow?.s ?? 0) - totalRevenue)
+
+  const upcomingVisitsCount = (d.prepare("SELECT COUNT(*) as c FROM orthodontic_visits WHERE next_appointment_date IS NOT NULL AND next_appointment_date >= date('now')").get() as { c: number })?.c ?? 0
+
+  return {
+    activeCases,
+    retentionCases,
+    completedCases,
+    suspendedCases,
+    upcomingVisitsCount,
+    totalRevenue,
+    totalDebt,
+  }
+}
+
+// ----------------------------------------------------
+// Dental Implants (Implantology Tracker)
+// ----------------------------------------------------
+function listDentalImplantsImpl(patientId?: number, status?: string, query?: string): unknown[] {
+  const d = getDb()
+  let sql = `
+    SELECT 
+      i.*,
+      p.first_name || ' ' || p.last_name as patient_name,
+      p.phone as patient_phone
+    FROM dental_implants i
+    JOIN patients p ON p.id = i.patient_id
+    WHERE 1=1
+  `
+  const params: unknown[] = []
+  if (patientId) {
+    sql += ' AND i.patient_id = ?'
+    params.push(patientId)
+  }
+  if (status && status !== 'all') {
+    sql += ' AND i.status = ?'
+    params.push(status)
+  }
+  if (query && query.trim()) {
+    const q = `%${query.trim()}%`
+    sql += ' AND (i.brand LIKE ? OR i.model LIKE ? OR i.lot_number LIKE ? OR p.first_name LIKE ? OR p.last_name LIKE ?)'
+    params.push(q, q, q, q, q)
+  }
+  sql += ' ORDER BY i.id DESC'
+  return d.prepare(sql).all(...params)
+}
+
+function getDentalImplantImpl(id: number): unknown | null {
+  const d = getDb()
+  const sql = `
+    SELECT 
+      i.*,
+      p.first_name || ' ' || p.last_name as patient_name,
+      p.phone as patient_phone
+    FROM dental_implants i
+    JOIN patients p ON p.id = i.patient_id
+    WHERE i.id = ?
+  `
+  return d.prepare(sql).get(id) ?? null
+}
+
+function createDentalImplantImpl(data: {
+  patientId: number
+  toothNumber: number
+  brand: string
+  model?: string | null
+  diameterMm: number
+  lengthMm: number
+  lotNumber?: string | null
+  serialNumber?: string | null
+  insertionTorqueNcm?: number | null
+  isqValue?: number | null
+  boneGraftType?: string | null
+  membraneUsed?: number
+  sinusLift?: string | null
+  placementDate: string
+  healingPeriodMonths?: number
+  targetLoadingDate?: string | null
+  healingAbutmentDate?: string | null
+  healingAbutmentSize?: string | null
+  finalLoadingDate?: string | null
+  prostheticType?: string | null
+  status?: string
+  notes?: string | null
+}): number {
+  const d = getDb()
+  const info = d.prepare(`
+    INSERT INTO dental_implants (
+      patient_id, tooth_number, brand, model, diameter_mm, length_mm,
+      lot_number, serial_number, insertion_torque_ncm, isq_value,
+      bone_graft_type, membrane_used, sinus_lift, placement_date,
+      healing_period_months, target_loading_date, healing_abutment_date,
+      healing_abutment_size, final_loading_date, prosthetic_type,
+      status, notes
+    ) VALUES (
+      ?, ?, ?, ?, ?, ?,
+      ?, ?, ?, ?,
+      ?, ?, ?, ?,
+      ?, ?, ?,
+      ?, ?, ?,
+      ?, ?
+    )
+  `).run(
+    data.patientId,
+    data.toothNumber,
+    data.brand,
+    data.model ?? null,
+    data.diameterMm,
+    data.lengthMm,
+    data.lotNumber ?? null,
+    data.serialNumber ?? null,
+    data.insertionTorqueNcm ?? null,
+    data.isqValue ?? null,
+    data.boneGraftType ?? null,
+    data.membraneUsed ? 1 : 0,
+    data.sinusLift ?? null,
+    data.placementDate,
+    data.healingPeriodMonths ?? 3,
+    data.targetLoadingDate ?? null,
+    data.healingAbutmentDate ?? null,
+    data.healingAbutmentSize ?? null,
+    data.finalLoadingDate ?? null,
+    data.prostheticType ?? null,
+    data.status ?? 'healing',
+    data.notes ?? null,
+  )
+  return Number(info.lastInsertRowid)
+}
+
+function updateDentalImplantImpl(id: number, data: {
+  toothNumber?: number
+  brand?: string
+  model?: string | null
+  diameterMm?: number
+  lengthMm?: number
+  lotNumber?: string | null
+  serialNumber?: string | null
+  insertionTorqueNcm?: number | null
+  isqValue?: number | null
+  boneGraftType?: string | null
+  membraneUsed?: number
+  sinusLift?: string | null
+  placementDate?: string
+  healingPeriodMonths?: number
+  targetLoadingDate?: string | null
+  healingAbutmentDate?: string | null
+  healingAbutmentSize?: string | null
+  finalLoadingDate?: string | null
+  prostheticType?: string | null
+  status?: string
+  notes?: string | null
+}): void {
+  const d = getDb()
+  const existing = d.prepare('SELECT * FROM dental_implants WHERE id = ?').get(id) as Record<string, unknown> | undefined
+  if (!existing) throw new Error('Dental implant not found')
+
+  d.prepare(`
+    UPDATE dental_implants SET
+      tooth_number = ?,
+      brand = ?,
+      model = ?,
+      diameter_mm = ?,
+      length_mm = ?,
+      lot_number = ?,
+      serial_number = ?,
+      insertion_torque_ncm = ?,
+      isq_value = ?,
+      bone_graft_type = ?,
+      membrane_used = ?,
+      sinus_lift = ?,
+      placement_date = ?,
+      healing_period_months = ?,
+      target_loading_date = ?,
+      healing_abutment_date = ?,
+      healing_abutment_size = ?,
+      final_loading_date = ?,
+      prosthetic_type = ?,
+      status = ?,
+      notes = ?,
+      updated_at = datetime('now')
+    WHERE id = ?
+  `).run(
+    data.toothNumber !== undefined ? data.toothNumber : existing.tooth_number,
+    data.brand !== undefined ? data.brand : existing.brand,
+    data.model !== undefined ? data.model : existing.model,
+    data.diameterMm !== undefined ? data.diameterMm : existing.diameter_mm,
+    data.lengthMm !== undefined ? data.lengthMm : existing.length_mm,
+    data.lotNumber !== undefined ? data.lotNumber : existing.lot_number,
+    data.serialNumber !== undefined ? data.serialNumber : existing.serial_number,
+    data.insertionTorqueNcm !== undefined ? data.insertionTorqueNcm : existing.insertion_torque_ncm,
+    data.isqValue !== undefined ? data.isqValue : existing.isq_value,
+    data.boneGraftType !== undefined ? data.boneGraftType : existing.bone_graft_type,
+    data.membraneUsed !== undefined ? (data.membraneUsed ? 1 : 0) : existing.membrane_used,
+    data.sinusLift !== undefined ? data.sinusLift : existing.sinus_lift,
+    data.placementDate !== undefined ? data.placementDate : existing.placement_date,
+    data.healingPeriodMonths !== undefined ? data.healingPeriodMonths : existing.healing_period_months,
+    data.targetLoadingDate !== undefined ? data.targetLoadingDate : existing.target_loading_date,
+    data.healingAbutmentDate !== undefined ? data.healingAbutmentDate : existing.healing_abutment_date,
+    data.healingAbutmentSize !== undefined ? data.healingAbutmentSize : existing.healing_abutment_size,
+    data.finalLoadingDate !== undefined ? data.finalLoadingDate : existing.final_loading_date,
+    data.prostheticType !== undefined ? data.prostheticType : existing.prosthetic_type,
+    data.status !== undefined ? data.status : existing.status,
+    data.notes !== undefined ? data.notes : existing.notes,
+    id,
+  )
+}
+
+function deleteDentalImplantImpl(id: number): void {
+  getDb().prepare('DELETE FROM dental_implants WHERE id = ?').run(id)
+}
+
+// ----------------------------------------------------
+// Dental Stock & Inventory
+// ----------------------------------------------------
+function listInventoryItemsImpl(category?: string, query?: string, lowStockOnly?: boolean, expiringSoon?: boolean): unknown[] {
+  const d = getDb()
+  let sql = `
+    SELECT 
+      inv.*,
+      dist.name as distributor_name,
+      dist.company as distributor_company,
+      dist.phone as distributor_phone,
+      (inv.quantity <= inv.min_threshold) as is_low_stock,
+      (inv.expiry_date IS NOT NULL AND inv.expiry_date < date('now')) as is_expired,
+      (inv.expiry_date IS NOT NULL AND inv.expiry_date >= date('now') AND inv.expiry_date <= date('now', '+60 days')) as is_near_expiry
+    FROM inventory_items inv
+    LEFT JOIN distributors dist ON dist.id = inv.distributor_id
+    WHERE 1=1
+  `
+  const params: unknown[] = []
+  if (category && category !== 'all') {
+    sql += ' AND inv.category = ?'
+    params.push(category)
+  }
+  if (query && query.trim()) {
+    const q = `%${query.trim()}%`
+    sql += ' AND (inv.name LIKE ? OR inv.specification LIKE ? OR inv.batch_number LIKE ? OR dist.name LIKE ? OR dist.company LIKE ?)'
+    params.push(q, q, q, q, q)
+  }
+  if (lowStockOnly) {
+    sql += ' AND inv.quantity <= inv.min_threshold'
+  }
+  if (expiringSoon) {
+    sql += " AND (inv.expiry_date IS NOT NULL AND inv.expiry_date <= date('now', '+60 days'))"
+  }
+  sql += ' ORDER BY inv.id DESC'
+  return d.prepare(sql).all(...params)
+}
+
+function getInventoryItemImpl(id: number): unknown | null {
+  const d = getDb()
+  const sql = `
+    SELECT 
+      inv.*,
+      dist.name as distributor_name,
+      dist.company as distributor_company,
+      dist.phone as distributor_phone,
+      (inv.quantity <= inv.min_threshold) as is_low_stock,
+      (inv.expiry_date IS NOT NULL AND inv.expiry_date < date('now')) as is_expired,
+      (inv.expiry_date IS NOT NULL AND inv.expiry_date >= date('now') AND inv.expiry_date <= date('now', '+60 days')) as is_near_expiry
+    FROM inventory_items inv
+    LEFT JOIN distributors dist ON dist.id = inv.distributor_id
+    WHERE inv.id = ?
+  `
+  return d.prepare(sql).get(id) ?? null
+}
+
+function createInventoryItemImpl(data: {
+  name: string
+  category: string
+  specification?: string | null
+  quantity: number
+  unit: string
+  minThreshold: number
+  costPerUnit: number
+  distributorId?: number | null
+  expiryDate?: string | null
+  batchNumber?: string | null
+  location?: string | null
+  notes?: string | null
+}): number {
+  const d = getDb()
+  const info = d.prepare(`
+    INSERT INTO inventory_items (
+      name, category, specification, quantity, unit,
+      min_threshold, cost_per_unit, distributor_id,
+      expiry_date, batch_number, location, notes
+    ) VALUES (
+      ?, ?, ?, ?, ?,
+      ?, ?, ?,
+      ?, ?, ?, ?
+    )
+  `).run(
+    data.name,
+    data.category,
+    data.specification ?? null,
+    data.quantity,
+    data.unit,
+    data.minThreshold,
+    data.costPerUnit,
+    data.distributorId ?? null,
+    data.expiryDate ?? null,
+    data.batchNumber ?? null,
+    data.location ?? null,
+    data.notes ?? null,
+  )
+  return Number(info.lastInsertRowid)
+}
+
+function updateInventoryItemImpl(id: number, data: {
+  name?: string
+  category?: string
+  specification?: string | null
+  quantity?: number
+  unit?: string
+  minThreshold?: number
+  costPerUnit?: number
+  distributorId?: number | null
+  expiryDate?: string | null
+  batchNumber?: string | null
+  location?: string | null
+  notes?: string | null
+}): void {
+  const d = getDb()
+  const existing = d.prepare('SELECT * FROM inventory_items WHERE id = ?').get(id) as Record<string, unknown> | undefined
+  if (!existing) throw new Error('Inventory item not found')
+
+  d.prepare(`
+    UPDATE inventory_items SET
+      name = ?,
+      category = ?,
+      specification = ?,
+      quantity = ?,
+      unit = ?,
+      min_threshold = ?,
+      cost_per_unit = ?,
+      distributor_id = ?,
+      expiry_date = ?,
+      batch_number = ?,
+      location = ?,
+      notes = ?,
+      updated_at = datetime('now')
+    WHERE id = ?
+  `).run(
+    data.name !== undefined ? data.name : existing.name,
+    data.category !== undefined ? data.category : existing.category,
+    data.specification !== undefined ? data.specification : existing.specification,
+    data.quantity !== undefined ? data.quantity : existing.quantity,
+    data.unit !== undefined ? data.unit : existing.unit,
+    data.minThreshold !== undefined ? data.minThreshold : existing.min_threshold,
+    data.costPerUnit !== undefined ? data.costPerUnit : existing.cost_per_unit,
+    data.distributorId !== undefined ? data.distributorId : existing.distributor_id,
+    data.expiryDate !== undefined ? data.expiryDate : existing.expiry_date,
+    data.batchNumber !== undefined ? data.batchNumber : existing.batch_number,
+    data.location !== undefined ? data.location : existing.location,
+    data.notes !== undefined ? data.notes : existing.notes,
+    id,
+  )
+}
+
+function adjustInventoryQuantityImpl(id: number, delta: number): unknown {
+  const d = getDb()
+  d.prepare(`
+    UPDATE inventory_items 
+    SET quantity = MAX(0, quantity + ?), updated_at = datetime('now') 
+    WHERE id = ?
+  `).run(delta, id)
+  return getInventoryItemImpl(id)
+}
+
+function deleteInventoryItemImpl(id: number): void {
+  getDb().prepare('DELETE FROM inventory_items WHERE id = ?').run(id)
+}
+
+function getInventoryStatsImpl(): unknown {
+  const d = getDb()
+  const totalRow = d.prepare('SELECT COUNT(*) as c, COALESCE(SUM(quantity * cost_per_unit), 0) as val FROM inventory_items').get() as { c: number; val: number }
+  const lowRow = d.prepare('SELECT COUNT(*) as c FROM inventory_items WHERE quantity <= min_threshold').get() as { c: number }
+  const expRow = d.prepare("SELECT COUNT(*) as c FROM inventory_items WHERE expiry_date IS NOT NULL AND expiry_date <= date('now', '+60 days')").get() as { c: number }
+
+  return {
+    totalItems: totalRow?.c ?? 0,
+    lowStockCount: lowRow?.c ?? 0,
+    expiringCount: expRow?.c ?? 0,
+    totalEstimatedValue: totalRow?.val ?? 0,
+  }
+}
+
+// ----------------------------------------------------
+// Treatment Catalog / Fee Schedule
+// ----------------------------------------------------
+function listTreatmentCatalogImpl(category?: string, query?: string, activeOnly = true): unknown[] {
+  const d = getDb()
+  let sql = 'SELECT * FROM treatment_catalog WHERE 1=1'
+  const params: unknown[] = []
+  if (activeOnly) {
+    sql += ' AND is_active = 1'
+  }
+  if (category && category !== 'all') {
+    sql += ' AND category = ?'
+    params.push(category)
+  }
+  if (query && query.trim()) {
+    const q = `%${query.trim()}%`
+    sql += ' AND (name_ar LIKE ? OR name_en LIKE ? OR code LIKE ? OR description LIKE ?)'
+    params.push(q, q, q, q)
+  }
+  sql += ' ORDER BY category ASC, id ASC'
+  return d.prepare(sql).all(...params)
+}
+
+function createTreatmentCatalogItemImpl(data: {
+  category: string
+  code?: string | null
+  nameAr: string
+  nameEn: string
+  defaultCost: number
+  description?: string | null
+  durationMinutes?: number
+  isActive?: number
+}): number {
+  const d = getDb()
+  const info = d.prepare(`
+    INSERT INTO treatment_catalog (
+      category, code, name_ar, name_en, default_cost, description, duration_minutes, is_active
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    data.category,
+    data.code ?? null,
+    data.nameAr,
+    data.nameEn,
+    data.defaultCost,
+    data.description ?? null,
+    data.durationMinutes ?? 30,
+    data.isActive !== undefined ? data.isActive : 1,
+  )
+  return Number(info.lastInsertRowid)
+}
+
+function updateTreatmentCatalogItemImpl(id: number, data: {
+  category?: string
+  code?: string | null
+  nameAr?: string
+  nameEn?: string
+  defaultCost?: number
+  description?: string | null
+  durationMinutes?: number
+  isActive?: number
+}): void {
+  const d = getDb()
+  const existing = d.prepare('SELECT * FROM treatment_catalog WHERE id = ?').get(id) as Record<string, unknown> | undefined
+  if (!existing) throw new Error('Treatment catalog item not found')
+
+  d.prepare(`
+    UPDATE treatment_catalog SET
+      category = ?,
+      code = ?,
+      name_ar = ?,
+      name_en = ?,
+      default_cost = ?,
+      description = ?,
+      duration_minutes = ?,
+      is_active = ?
+    WHERE id = ?
+  `).run(
+    data.category !== undefined ? data.category : existing.category,
+    data.code !== undefined ? data.code : existing.code,
+    data.nameAr !== undefined ? data.nameAr : existing.name_ar,
+    data.nameEn !== undefined ? data.nameEn : existing.name_en,
+    data.defaultCost !== undefined ? data.defaultCost : existing.default_cost,
+    data.description !== undefined ? data.description : existing.description,
+    data.durationMinutes !== undefined ? data.durationMinutes : existing.duration_minutes,
+    data.isActive !== undefined ? data.isActive : existing.is_active,
+    id,
+  )
+}
+
+function deleteTreatmentCatalogItemImpl(id: number): void {
+  getDb().prepare('DELETE FROM treatment_catalog WHERE id = ?').run(id)
+}
+
 export type DbRequest =
   | { op: 'getConfig'; key: string }
   | { op: 'setConfig'; key: string; value: string }
@@ -1437,6 +2399,195 @@ export type DbRequest =
     }
   | { op: 'updateLabOrderStatus'; id: number; status: 'progress' | 'received' | 'delayed' }
   | { op: 'deleteLabOrder'; id: number }
+  | { op: 'listOrthodonticCases'; patientId?: number; status?: string; query?: string }
+  | { op: 'getOrthodonticCase'; id: number }
+  | {
+      op: 'createOrthodonticCase'
+      patientId: number
+      startDate: string
+      estimatedDurationMonths?: number
+      status?: 'active' | 'retention' | 'completed' | 'suspended'
+      classification?: string
+      applianceType?: string
+      archType?: 'upper' | 'lower' | 'both'
+      extractionPlan?: string | null
+      chiefComplaint?: string | null
+      diagnosisNotes?: string | null
+      totalCost?: number
+      downPayment?: number
+      monthlyInstallment?: number
+      retainerType?: string | null
+    }
+  | {
+      op: 'updateOrthodonticCase'
+      id: number
+      startDate?: string
+      estimatedDurationMonths?: number
+      status?: 'active' | 'retention' | 'completed' | 'suspended'
+      classification?: string
+      applianceType?: string
+      archType?: 'upper' | 'lower' | 'both'
+      extractionPlan?: string | null
+      chiefComplaint?: string | null
+      diagnosisNotes?: string | null
+      totalCost?: number
+      downPayment?: number
+      monthlyInstallment?: number
+      retainerType?: string | null
+    }
+  | { op: 'deleteOrthodonticCase'; id: number }
+  | { op: 'listOrthodonticVisits'; caseId: number }
+  | {
+      op: 'createOrthodonticVisit'
+      caseId: number
+      visitDate: string
+      upperWire?: string | null
+      lowerWire?: string | null
+      elasticPrescription?: string | null
+      actionsJson?: string | null
+      brokenBracketsCount?: number
+      oralHygieneRating?: number
+      painLevel?: number
+      amountPaid?: number
+      notes?: string | null
+      nextAppointmentDate?: string | null
+    }
+  | {
+      op: 'updateOrthodonticVisit'
+      id: number
+      upperWire?: string | null
+      lowerWire?: string | null
+      elasticPrescription?: string | null
+      actionsJson?: string | null
+      brokenBracketsCount?: number
+      oralHygieneRating?: number
+      painLevel?: number
+      amountPaid?: number
+      notes?: string | null
+      nextAppointmentDate?: string | null
+    }
+  | { op: 'deleteOrthodonticVisit'; id: number }
+  | { op: 'getOrthodonticStats' }
+
+  // Dental Implants
+  | { op: 'listDentalImplants'; patientId?: number; status?: string; query?: string }
+  | { op: 'getDentalImplant'; id: number }
+  | {
+      op: 'createDentalImplant'
+      patientId: number
+      toothNumber: number
+      brand: string
+      model?: string | null
+      diameterMm: number
+      lengthMm: number
+      lotNumber?: string | null
+      serialNumber?: string | null
+      insertionTorqueNcm?: number | null
+      isqValue?: number | null
+      boneGraftType?: string | null
+      membraneUsed?: number
+      sinusLift?: string | null
+      placementDate: string
+      healingPeriodMonths?: number
+      targetLoadingDate?: string | null
+      healingAbutmentDate?: string | null
+      healingAbutmentSize?: string | null
+      finalLoadingDate?: string | null
+      prostheticType?: string | null
+      status?: string
+      notes?: string | null
+    }
+  | {
+      op: 'updateDentalImplant'
+      id: number
+      toothNumber?: number
+      brand?: string
+      model?: string | null
+      diameterMm?: number
+      lengthMm?: number
+      lotNumber?: string | null
+      serialNumber?: string | null
+      insertionTorqueNcm?: number | null
+      isqValue?: number | null
+      boneGraftType?: string | null
+      membraneUsed?: number
+      sinusLift?: string | null
+      placementDate?: string
+      healingPeriodMonths?: number
+      targetLoadingDate?: string | null
+      healingAbutmentDate?: string | null
+      healingAbutmentSize?: string | null
+      finalLoadingDate?: string | null
+      prostheticType?: string | null
+      status?: string
+      notes?: string | null
+    }
+  | { op: 'deleteDentalImplant'; id: number }
+
+  // Dental Stock & Inventory
+  | { op: 'listInventoryItems'; category?: string; query?: string; lowStockOnly?: boolean; expiringSoon?: boolean }
+  | { op: 'getInventoryItem'; id: number }
+  | {
+      op: 'createInventoryItem'
+      name: string
+      category: string
+      specification?: string | null
+      quantity: number
+      unit: string
+      minThreshold: number
+      costPerUnit: number
+      distributorId?: number | null
+      expiryDate?: string | null
+      batchNumber?: string | null
+      location?: string | null
+      notes?: string | null
+    }
+  | {
+      op: 'updateInventoryItem'
+      id: number
+      name?: string
+      category?: string
+      specification?: string | null
+      quantity?: number
+      unit?: string
+      minThreshold?: number
+      costPerUnit?: number
+      distributorId?: number | null
+      expiryDate?: string | null
+      batchNumber?: string | null
+      location?: string | null
+      notes?: string | null
+    }
+  | { op: 'adjustInventoryQuantity'; id: number; delta: number }
+  | { op: 'deleteInventoryItem'; id: number }
+  | { op: 'getInventoryStats' }
+
+  // Treatment Catalog
+  | { op: 'listTreatmentCatalog'; category?: string; query?: string; activeOnly?: boolean }
+  | {
+      op: 'createTreatmentCatalogItem'
+      category: string
+      code?: string | null
+      nameAr: string
+      nameEn: string
+      defaultCost: number
+      description?: string | null
+      durationMinutes?: number
+      isActive?: number
+    }
+  | {
+      op: 'updateTreatmentCatalogItem'
+      id: number
+      category?: string
+      code?: string | null
+      nameAr?: string
+      nameEn?: string
+      defaultCost?: number
+      description?: string | null
+      durationMinutes?: number
+      isActive?: number
+    }
+  | { op: 'deleteTreatmentCatalogItem'; id: number }
 
 export function handleDbRequest(req: DbRequest): unknown {
   switch (req.op) {
@@ -1680,6 +2831,128 @@ export function handleDbRequest(req: DbRequest): unknown {
     case 'deleteLabOrder':
       deleteLabOrderImpl(req.id)
       return true
+    case 'listOrthodonticCases':
+      return listOrthodonticCasesImpl(req.patientId, req.status, req.query)
+    case 'getOrthodonticCase':
+      return getOrthodonticCaseImpl(req.id)
+    case 'createOrthodonticCase':
+      return createOrthodonticCaseImpl({
+        patientId: req.patientId,
+        startDate: req.startDate,
+        estimatedDurationMonths: req.estimatedDurationMonths,
+        status: req.status,
+        classification: req.classification,
+        applianceType: req.applianceType,
+        archType: req.archType,
+        extractionPlan: req.extractionPlan,
+        chiefComplaint: req.chiefComplaint,
+        diagnosisNotes: req.diagnosisNotes,
+        totalCost: req.totalCost,
+        downPayment: req.downPayment,
+        monthlyInstallment: req.monthlyInstallment,
+        retainerType: req.retainerType,
+      })
+    case 'updateOrthodonticCase':
+      updateOrthodonticCaseImpl(req.id, {
+        startDate: req.startDate,
+        estimatedDurationMonths: req.estimatedDurationMonths,
+        status: req.status,
+        classification: req.classification,
+        applianceType: req.applianceType,
+        archType: req.archType,
+        extractionPlan: req.extractionPlan,
+        chiefComplaint: req.chiefComplaint,
+        diagnosisNotes: req.diagnosisNotes,
+        totalCost: req.totalCost,
+        downPayment: req.downPayment,
+        monthlyInstallment: req.monthlyInstallment,
+        retainerType: req.retainerType,
+      })
+      return true
+    case 'deleteOrthodonticCase':
+      deleteOrthodonticCaseImpl(req.id)
+      return true
+    case 'listOrthodonticVisits':
+      return listOrthodonticVisitsImpl(req.caseId)
+    case 'createOrthodonticVisit':
+      return createOrthodonticVisitImpl({
+        caseId: req.caseId,
+        visitDate: req.visitDate,
+        upperWire: req.upperWire,
+        lowerWire: req.lowerWire,
+        elasticPrescription: req.elasticPrescription,
+        actionsJson: req.actionsJson,
+        brokenBracketsCount: req.brokenBracketsCount,
+        oralHygieneRating: req.oralHygieneRating,
+        painLevel: req.painLevel,
+        amountPaid: req.amountPaid,
+        notes: req.notes,
+        nextAppointmentDate: req.nextAppointmentDate,
+      })
+    case 'updateOrthodonticVisit':
+      updateOrthodonticVisitImpl(req.id, {
+        upperWire: req.upperWire,
+        lowerWire: req.lowerWire,
+        elasticPrescription: req.elasticPrescription,
+        actionsJson: req.actionsJson,
+        brokenBracketsCount: req.brokenBracketsCount,
+        oralHygieneRating: req.oralHygieneRating,
+        painLevel: req.painLevel,
+        amountPaid: req.amountPaid,
+        notes: req.notes,
+        nextAppointmentDate: req.nextAppointmentDate,
+      })
+      return true
+    case 'deleteOrthodonticVisit':
+      deleteOrthodonticVisitImpl(req.id)
+      return true
+    case 'getOrthodonticStats':
+      return getOrthodonticStatsImpl()
+
+    // Dental Implants
+    case 'listDentalImplants':
+      return listDentalImplantsImpl(req.patientId, req.status, req.query)
+    case 'getDentalImplant':
+      return getDentalImplantImpl(req.id)
+    case 'createDentalImplant':
+      return createDentalImplantImpl(req)
+    case 'updateDentalImplant':
+      updateDentalImplantImpl(req.id, req)
+      return true
+    case 'deleteDentalImplant':
+      deleteDentalImplantImpl(req.id)
+      return true
+
+    // Dental Stock & Inventory
+    case 'listInventoryItems':
+      return listInventoryItemsImpl(req.category, req.query, req.lowStockOnly, req.expiringSoon)
+    case 'getInventoryItem':
+      return getInventoryItemImpl(req.id)
+    case 'createInventoryItem':
+      return createInventoryItemImpl(req)
+    case 'updateInventoryItem':
+      updateInventoryItemImpl(req.id, req)
+      return true
+    case 'adjustInventoryQuantity':
+      return adjustInventoryQuantityImpl(req.id, req.delta)
+    case 'deleteInventoryItem':
+      deleteInventoryItemImpl(req.id)
+      return true
+    case 'getInventoryStats':
+      return getInventoryStatsImpl()
+
+    // Treatment Catalog
+    case 'listTreatmentCatalog':
+      return listTreatmentCatalogImpl(req.category, req.query, req.activeOnly)
+    case 'createTreatmentCatalogItem':
+      return createTreatmentCatalogItemImpl(req)
+    case 'updateTreatmentCatalogItem':
+      updateTreatmentCatalogItemImpl(req.id, req)
+      return true
+    case 'deleteTreatmentCatalogItem':
+      deleteTreatmentCatalogItemImpl(req.id)
+      return true
+
     default:
       throw new Error('Unknown db operation')
   }

@@ -160,4 +160,107 @@ CREATE TABLE IF NOT EXISTS lab_orders (
   status TEXT NOT NULL DEFAULT 'progress' CHECK(status IN ('progress','received','delayed')),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS orthodontic_cases (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  patient_id INTEGER NOT NULL,
+  case_number TEXT UNIQUE,
+  start_date TEXT NOT NULL,
+  estimated_duration_months INTEGER NOT NULL DEFAULT 18,
+  status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','retention','completed','suspended')),
+  classification TEXT NOT NULL DEFAULT 'class_1',
+  appliance_type TEXT NOT NULL DEFAULT 'metal',
+  arch_type TEXT NOT NULL DEFAULT 'both' CHECK(arch_type IN ('upper','lower','both')),
+  extraction_plan TEXT,
+  chief_complaint TEXT,
+  diagnosis_notes TEXT,
+  total_cost REAL NOT NULL DEFAULT 0,
+  down_payment REAL NOT NULL DEFAULT 0,
+  monthly_installment REAL NOT NULL DEFAULT 0,
+  retainer_type TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS orthodontic_visits (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  case_id INTEGER NOT NULL,
+  visit_number INTEGER NOT NULL DEFAULT 1,
+  visit_date TEXT NOT NULL,
+  upper_wire TEXT,
+  lower_wire TEXT,
+  elastic_prescription TEXT,
+  actions_json TEXT,
+  broken_brackets_count INTEGER NOT NULL DEFAULT 0,
+  oral_hygiene_rating INTEGER NOT NULL DEFAULT 4,
+  pain_level INTEGER NOT NULL DEFAULT 1,
+  amount_paid REAL NOT NULL DEFAULT 0,
+  notes TEXT,
+  next_appointment_date TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (case_id) REFERENCES orthodontic_cases(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS dental_implants (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  patient_id INTEGER NOT NULL,
+  tooth_number INTEGER NOT NULL,
+  brand TEXT NOT NULL,
+  model TEXT,
+  diameter_mm REAL NOT NULL,
+  length_mm REAL NOT NULL,
+  lot_number TEXT,
+  serial_number TEXT,
+  insertion_torque_ncm REAL,
+  isq_value REAL,
+  bone_graft_type TEXT,
+  membrane_used INTEGER NOT NULL DEFAULT 0,
+  sinus_lift TEXT,
+  placement_date TEXT NOT NULL,
+  healing_period_months INTEGER NOT NULL DEFAULT 3,
+  target_loading_date TEXT,
+  healing_abutment_date TEXT,
+  healing_abutment_size TEXT,
+  final_loading_date TEXT,
+  prosthetic_type TEXT,
+  status TEXT NOT NULL DEFAULT 'healing' CHECK(status IN ('planned','placed','healing','uncovered','restored','failed')),
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS inventory_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL CHECK(category IN ('anesthesia','composite','endodontics','surgery_implants','impression','sterilization','disposables','other')),
+  specification TEXT,
+  quantity REAL NOT NULL DEFAULT 0,
+  unit TEXT NOT NULL DEFAULT 'قطعة',
+  min_threshold REAL NOT NULL DEFAULT 5,
+  cost_per_unit REAL NOT NULL DEFAULT 0,
+  distributor_id INTEGER,
+  expiry_date TEXT,
+  batch_number TEXT,
+  location TEXT,
+  notes TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (distributor_id) REFERENCES distributors(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS treatment_catalog (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  category TEXT NOT NULL,
+  code TEXT,
+  name_ar TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  default_cost REAL NOT NULL DEFAULT 0,
+  description TEXT,
+  duration_minutes INTEGER NOT NULL DEFAULT 30,
+  is_active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `
+

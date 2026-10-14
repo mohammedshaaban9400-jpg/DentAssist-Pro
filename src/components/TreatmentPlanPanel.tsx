@@ -2,13 +2,23 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { format, parseISO } from 'date-fns'
 import { arSA, enUS } from 'date-fns/locale'
-import { CheckCircle2, ClipboardList, Link2, Plus, Printer, Trash2 } from 'lucide-react'
+import {
+  Plus,
+  Printer,
+  Trash2,
+  Sparkles,
+  Pencil,
+  Calendar,
+  X,
+  FileText,
+  Save,
+  Check,
+} from 'lucide-react'
 import { useReactToPrint } from 'react-to-print'
-import type { Appointment, TreatmentPlan, TreatmentPlanStage } from '@/types/clinical'
+import type { Appointment, TreatmentPlan, TreatmentPlanStage, TreatmentCatalogItem } from '@/types/clinical'
 import {
   getConfigs,
   readUserDataFileDataUrl,
-  acceptTreatmentPlan,
   createTreatmentPlan,
   createTreatmentPlanStage,
   deleteTreatmentPlan,
@@ -16,12 +26,14 @@ import {
   listAppointments,
   listTreatmentPlanStages,
   listTreatmentPlans,
+  listTreatmentCatalog,
   updateTreatmentPlan,
   updateTreatmentPlanStage,
 } from '@/services/dbService'
 import { useToastStore } from '@/stores/toastStore'
 import { useConfirm } from '@/hooks/useConfirm'
 import { TreatmentPlanPrintDocument, type TreatmentPlanPrintDocumentProps } from '@/components/TreatmentPlanPrintDocument'
+import { TreatmentCatalogModal } from '@/components/TreatmentCatalogModal'
 
 type Props = {
   patientId: number
@@ -43,13 +55,18 @@ export function TreatmentPlanPanel({ patientId, patientDisplayName, patientPhone
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
 
+  // Plan Details State
   const [planTitle, setPlanTitle] = useState('')
   const [planDiagnosis, setPlanDiagnosis] = useState('')
   const [planNotes, setPlanNotes] = useState('')
   const [planStatus, setPlanStatus] = useState<TreatmentPlan['status']>('draft')
-  const [acceptedByName, setAcceptedByName] = useState('')
-  const [signatureText, setSignatureText] = useState('')
 
+  // New Plan Modal State
+  const [newPlanModalOpen, setNewPlanModalOpen] = useState(false)
+  const [newPlanTitle, setNewPlanTitle] = useState('')
+  const [newPlanDiagnosis, setNewPlanDiagnosis] = useState('')
+
+  // Stage Form State
   const [stageId, setStageId] = useState<number | null>(null)
   const [stageOrder, setStageOrder] = useState(1)
   const [stageTitle, setStageTitle] = useState('')
@@ -59,6 +76,8 @@ export function TreatmentPlanPanel({ patientId, patientDisplayName, patientPhone
   const [stageStatus, setStageStatus] = useState<TreatmentPlanStage['status']>('pending')
   const [stageAppointmentId, setStageAppointmentId] = useState<number | null>(null)
   const [stageDueDate, setStageDueDate] = useState('')
+
+  // Print Setup
   const printRef = useRef<HTMLDivElement>(null)
   const handlePrint = useReactToPrint({
     contentRef: printRef,
@@ -67,10 +86,27 @@ export function TreatmentPlanPanel({ patientId, patientDisplayName, patientPhone
   })
   const [printSnap, setPrintSnap] = useState<TreatmentPlanPrintDocumentProps | null>(null)
 
+  // Treatment Catalog
+  const [catalog, setCatalog] = useState<TreatmentCatalogItem[]>([])
+  const [catalogModalOpen, setCatalogModalOpen] = useState(false)
+
   const selectedPlan = useMemo(
     () => plans.find((p) => p.id === selectedPlanId) ?? null,
     [plans, selectedPlanId],
   )
+
+  const loadCatalog = useCallback(async () => {
+    try {
+      const rows = await listTreatmentCatalog({ activeOnly: true })
+      setCatalog(rows)
+    } catch {
+      // ignore
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadCatalog()
+  }, [loadCatalog])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -81,11 +117,13 @@ export function TreatmentPlanPanel({ patientId, patientDisplayName, patientPhone
       ])
       setPlans(planRows)
       setAppointments(appointmentRows.filter((a) => a.patient_id === patientId))
-      const firstId = planRows[0]?.id ?? null
-      const activeId = selectedPlanId && planRows.some((p) => p.id === selectedPlanId) ? selectedPlanId : firstId
-      setSelectedPlanId(activeId)
-      if (activeId) {
-        const stageRows = await listTreatmentPlanStages(activeId)
+
+      const currentSelectedExists = selectedPlanId && planRows.some((p) => p.id === selectedPlanId)
+      const targetId = currentSelectedExists ? selectedPlanId : planRows[0]?.id ?? null
+      setSelectedPlanId(targetId)
+
+      if (targetId) {
+        const stageRows = await listTreatmentPlanStages(targetId)
         setStages(stageRows)
       } else {
         setStages([])
@@ -127,10 +165,22 @@ export function TreatmentPlanPanel({ patientId, patientDisplayName, patientPhone
     setStageDueDate('')
   }
 
-  const onCreatePlan = async () => {
-    const title = planTitle.trim()
+  // Financial Metrics
+  const totalEstimated = useMemo(
+    () => stages.reduce((s, x) => s + (Number.isFinite(x.estimated_cost) ? x.estimated_cost : 0), 0),
+    [stages],
+  )
+  const totalPaid = useMemo(
+    () => stages.reduce((s, x) => s + (Number.isFinite(x.paid_amount) ? x.paid_amount : 0), 0),
+    [stages],
+  )
+  const totalRemaining = Math.max(0, totalEstimated - totalPaid)
+
+  // Plan Handlers
+  const onCreateNewPlan = async () => {
+    const title = newPlanTitle.trim()
     if (!title) {
-      push(isAr ? 'أدخل عنوان خطة العلاج.' : 'Enter treatment plan title.', 'error')
+      push(isAr ? 'يرجى إدخال عنوان خطة العلاج.' : 'Please enter treatment plan title.', 'error')
       return
     }
     setBusy(true)
@@ -138,12 +188,18 @@ export function TreatmentPlanPanel({ patientId, patientDisplayName, patientPhone
       const id = await createTreatmentPlan({
         patientId,
         title,
-        diagnosis: planDiagnosis.trim() || null,
-        notes: planNotes.trim() || null,
+        diagnosis: newPlanDiagnosis.trim() || null,
+        notes: null,
       })
+      setNewPlanModalOpen(false)
+      setNewPlanTitle('')
+      setNewPlanDiagnosis('')
       await load()
       setSelectedPlanId(id)
-      push(isAr ? 'تم إنشاء خطة العلاج.' : 'Treatment plan created.', 'success')
+      const stageRows = await listTreatmentPlanStages(id)
+      setStages(stageRows)
+      resetStageForm()
+      push(isAr ? 'تم إنشاء خطة العلاج بنجاح.' : 'Treatment plan created successfully.', 'success')
     } catch (e) {
       push(e instanceof Error ? e.message : String(e), 'error')
     } finally {
@@ -154,40 +210,20 @@ export function TreatmentPlanPanel({ patientId, patientDisplayName, patientPhone
   const onSavePlan = async () => {
     if (!selectedPlan) return
     if (!planTitle.trim()) {
-      push(isAr ? 'العنوان مطلوب.' : 'Title is required.', 'error')
+      push(isAr ? 'عنوان الخطة مطلوب.' : 'Plan title is required.', 'error')
       return
     }
     setBusy(true)
     try {
       await updateTreatmentPlan({
         id: selectedPlan.id,
-        title: planTitle,
+        title: planTitle.trim(),
         diagnosis: planDiagnosis.trim() || null,
         notes: planNotes.trim() || null,
         status: planStatus,
       })
       await load()
-      push(isAr ? 'تم تحديث الخطة.' : 'Plan updated.', 'success')
-    } catch (e) {
-      push(e instanceof Error ? e.message : String(e), 'error')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const onAcceptPlan = async () => {
-    if (!selectedPlan) return
-    if (!acceptedByName.trim() || !signatureText.trim()) {
-      push(isAr ? 'الاسم والتوقيع مطلوبان لاعتماد الخطة.' : 'Name and signature are required to accept plan.', 'error')
-      return
-    }
-    setBusy(true)
-    try {
-      await acceptTreatmentPlan(selectedPlan.id, acceptedByName, signatureText)
-      setAcceptedByName('')
-      setSignatureText('')
-      await load()
-      push(isAr ? 'تم اعتماد الخطة وتوقيع قبول المريض.' : 'Plan accepted with patient signature.', 'success')
+      push(isAr ? 'تم حفظ التعديلات على الخطة.' : 'Plan changes saved.', 'success')
     } catch (e) {
       push(e instanceof Error ? e.message : String(e), 'error')
     } finally {
@@ -198,7 +234,7 @@ export function TreatmentPlanPanel({ patientId, patientDisplayName, patientPhone
   const onDeletePlan = async () => {
     if (!selectedPlan) return
     const ok = await confirm(
-      isAr ? 'سيتم حذف الخطة وجميع مراحلها. متابعة؟' : 'This will delete the plan and all stages. Continue?',
+      isAr ? 'هل أنت متأكد من حذف هذه الخطة العلاجية وجميع مراحلها؟' : 'Are you sure you want to delete this treatment plan and all its stages?',
       { danger: true },
     )
     if (!ok) return
@@ -207,7 +243,7 @@ export function TreatmentPlanPanel({ patientId, patientDisplayName, patientPhone
       await deleteTreatmentPlan(selectedPlan.id)
       await load()
       resetStageForm()
-      push(isAr ? 'تم حذف الخطة.' : 'Plan deleted.', 'success')
+      push(isAr ? 'تم حذف الخطة العلاجية.' : 'Treatment plan deleted.', 'success')
     } catch (e) {
       push(e instanceof Error ? e.message : String(e), 'error')
     } finally {
@@ -215,6 +251,7 @@ export function TreatmentPlanPanel({ patientId, patientDisplayName, patientPhone
     }
   }
 
+  // Stage Handlers
   const onEditStage = (s: TreatmentPlanStage) => {
     setStageId(s.id)
     setStageOrder(s.stage_order)
@@ -225,18 +262,21 @@ export function TreatmentPlanPanel({ patientId, patientDisplayName, patientPhone
     setStageStatus(s.status)
     setStageAppointmentId(s.appointment_id)
     setStageDueDate(s.due_date ? s.due_date.slice(0, 10) : '')
+    // Scroll smoothly to stage form
+    const el = document.getElementById('treatment-stage-form')
+    if (el) el.scrollIntoView({ behavior: 'smooth' })
   }
 
   const onSaveStage = async () => {
     if (!selectedPlanId) return
     if (!stageTitle.trim()) {
-      push(isAr ? 'عنوان المرحلة مطلوب.' : 'Stage title is required.', 'error')
+      push(isAr ? 'يرجى كتابة اسم الإجراء أو المرحلة.' : 'Please enter procedure or stage title.', 'error')
       return
     }
     const estimated = Number(stageEstimated || '0')
     const paid = Number(stagePaid || '0')
     if (!Number.isFinite(estimated) || estimated < 0 || !Number.isFinite(paid) || paid < 0) {
-      push(isAr ? 'أدخل مبالغ صحيحة.' : 'Enter valid amounts.', 'error')
+      push(isAr ? 'يرجى إدخال مبالغ مالية صحيحة.' : 'Please enter valid amounts.', 'error')
       return
     }
     setBusy(true)
@@ -245,7 +285,7 @@ export function TreatmentPlanPanel({ patientId, patientDisplayName, patientPhone
         await updateTreatmentPlanStage({
           id: stageId,
           stageOrder: stageOrder || 1,
-          title: stageTitle,
+          title: stageTitle.trim(),
           description: stageDescription.trim() || null,
           estimatedCost: estimated,
           paidAmount: paid,
@@ -256,8 +296,8 @@ export function TreatmentPlanPanel({ patientId, patientDisplayName, patientPhone
       } else {
         await createTreatmentPlanStage({
           planId: selectedPlanId,
-          stageOrder: stageOrder || 1,
-          title: stageTitle,
+          stageOrder: stageOrder || (stages.length + 1),
+          title: stageTitle.trim(),
           description: stageDescription.trim() || null,
           estimatedCost: estimated,
           paidAmount: paid,
@@ -269,7 +309,7 @@ export function TreatmentPlanPanel({ patientId, patientDisplayName, patientPhone
       const rows = await listTreatmentPlanStages(selectedPlanId)
       setStages(rows)
       resetStageForm()
-      push(isAr ? 'تم حفظ المرحلة.' : 'Stage saved.', 'success')
+      push(isAr ? 'تم حفظ المرحلة بنجاح.' : 'Stage saved successfully.', 'success')
     } catch (e) {
       push(e instanceof Error ? e.message : String(e), 'error')
     } finally {
@@ -277,8 +317,36 @@ export function TreatmentPlanPanel({ patientId, patientDisplayName, patientPhone
     }
   }
 
+  const onToggleStageStatus = async (s: TreatmentPlanStage) => {
+    if (!selectedPlanId) return
+    const nextStatus: TreatmentPlanStage['status'] = s.status === 'completed' ? 'pending' : 'completed'
+    try {
+      await updateTreatmentPlanStage({
+        id: s.id,
+        stageOrder: s.stage_order,
+        title: s.title,
+        description: s.description,
+        estimatedCost: s.estimated_cost,
+        paidAmount: s.paid_amount,
+        status: nextStatus,
+        appointmentId: s.appointment_id,
+        dueDate: s.due_date,
+      })
+      const rows = await listTreatmentPlanStages(selectedPlanId)
+      setStages(rows)
+      push(
+        nextStatus === 'completed'
+          ? (isAr ? 'تم وضع علامة مكتملة على المرحلة.' : 'Marked stage as completed.')
+          : (isAr ? 'تم تغيير الحالة إلى معلقة.' : 'Marked stage as pending.'),
+        'success',
+      )
+    } catch (e) {
+      push(e instanceof Error ? e.message : String(e), 'error')
+    }
+  }
+
   const onDeleteStage = async (id: number) => {
-    const ok = await confirm(isAr ? 'حذف هذه المرحلة؟' : 'Delete this stage?', { danger: true })
+    const ok = await confirm(isAr ? 'حذف هذه المرحلة من الخطة؟' : 'Delete this stage from plan?', { danger: true })
     if (!ok) return
     setBusy(true)
     try {
@@ -295,6 +363,7 @@ export function TreatmentPlanPanel({ patientId, patientDisplayName, patientPhone
     }
   }
 
+  // Print Plan
   const queuePrintPlan = useCallback(async () => {
     if (!selectedPlan) return
     try {
@@ -319,18 +388,18 @@ export function TreatmentPlanPanel({ patientId, patientDisplayName, patientPhone
         plan: selectedPlan,
         stages,
         labels: {
-          title: isAr ? 'خطة علاج' : 'Treatment Plan',
+          title: isAr ? 'خطة علاج المريض' : 'Patient Treatment Plan',
           diagnosis: isAr ? 'التشخيص' : 'Diagnosis',
           notes: isAr ? 'ملاحظات' : 'Notes',
           status: isAr ? 'الحالة' : 'Status',
-          acceptedBy: isAr ? 'اعتمدها' : 'Accepted by',
-          acceptedAt: isAr ? 'تاريخ الاعتماد' : 'Accepted at',
-          signature: isAr ? 'التوقيع' : 'Signature',
+          acceptedBy: '',
+          acceptedAt: '',
+          signature: '',
           stage: isAr ? 'المرحلة' : 'Stage',
           estimated: isAr ? 'التكلفة' : 'Estimated',
           paid: isAr ? 'المدفوع' : 'Paid',
           remaining: isAr ? 'المتبقي' : 'Remaining',
-          linkedAppointment: isAr ? 'موعد مرتبط' : 'Linked appointment',
+          linkedAppointment: isAr ? 'الموعد المرتبط' : 'Linked appointment',
           dueDate: isAr ? 'تاريخ الاستحقاق' : 'Due date',
         },
       }
@@ -342,219 +411,658 @@ export function TreatmentPlanPanel({ patientId, patientDisplayName, patientPhone
   }, [handlePrint, isAr, loc, patientDisplayName, patientPhone, push, selectedPlan, stages])
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="mb-4 flex items-center gap-2">
-        <ClipboardList className="size-5 text-teal-700" />
-        <h2 className="text-lg font-semibold text-slate-900">
-          {isAr ? 'خطة العلاج' : 'Treatment Plan'}
-        </h2>
-      </div>
+    <div className="space-y-6">
+      {/* Top Header Card */}
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="flex size-11 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
+            <FileText className="size-6" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">
+              {isAr ? 'الخطة العلاجية للمريض' : 'Patient Treatment Plan'}
+            </h2>
+            <p className="text-xs text-slate-500">
+              {isAr
+                ? 'إدارة مراحل وإجراءات العلاج والتكاليف التقديرية بدقة وسهولة'
+                : 'Manage clinical procedures, stages and treatment costs seamlessly'}
+            </p>
+          </div>
+        </div>
 
-      {loading ? (
-        <p className="text-sm text-slate-500">{isAr ? 'جاري التحميل...' : 'Loading...'}</p>
-      ) : (
-        <div className="space-y-5">
-          <div className="flex flex-wrap items-center gap-2">
-            {plans.map((p) => (
+        {/* Plan Tabs & New Plan Button */}
+        <div className="flex flex-wrap items-center gap-2">
+          {plans.map((p) => {
+            const isSelected = selectedPlanId === p.id
+            return (
               <button
                 key={p.id}
                 type="button"
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
-                  selectedPlanId === p.id
-                    ? 'bg-teal-100 text-teal-800'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
                 onClick={() => {
                   setSelectedPlanId(p.id)
                   void listTreatmentPlanStages(p.id).then(setStages)
                   resetStageForm()
                 }}
+                className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold transition-all ${
+                  isSelected
+                    ? 'bg-teal-600 text-white shadow-sm shadow-teal-600/25 ring-2 ring-teal-600/20'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
               >
-                {p.title}
+                <span>{p.title}</span>
+                <span
+                  className={`size-2 rounded-full ${
+                    p.status === 'completed'
+                      ? 'bg-emerald-400'
+                      : p.status === 'in_progress'
+                      ? 'bg-sky-400'
+                      : p.status === 'cancelled'
+                      ? 'bg-rose-400'
+                      : 'bg-amber-400'
+                  }`}
+                />
               </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedPlanId(null)
-                setStages([])
-              }}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-            >
-              <Plus className="size-3.5" />
-              {isAr ? 'خطة جديدة' : 'New plan'}
-            </button>
-          </div>
+            )
+          })}
+          <button
+            type="button"
+            onClick={() => {
+              setNewPlanTitle(isAr ? `خطة علاج #${plans.length + 1}` : `Treatment Plan #${plans.length + 1}`)
+              setNewPlanDiagnosis('')
+              setNewPlanModalOpen(true)
+            }}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-teal-300 bg-teal-50 px-3.5 py-2 text-xs font-bold text-teal-800 transition hover:bg-teal-100"
+          >
+            <Plus className="size-3.5" />
+            <span>{isAr ? 'خطة جديدة' : 'New Plan'}</span>
+          </button>
+        </div>
+      </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="sm:col-span-2 text-sm font-medium text-slate-700">
-              {isAr ? 'عنوان الخطة' : 'Plan title'}
-              <input value={planTitle} onChange={(e) => setPlanTitle(e.target.value)} className="da-input mt-1" />
-            </label>
-            <label className="sm:col-span-2 text-sm font-medium text-slate-700">
-              {isAr ? 'التشخيص' : 'Diagnosis'}
-              <textarea value={planDiagnosis} onChange={(e) => setPlanDiagnosis(e.target.value)} rows={2} className="da-input mt-1" />
-            </label>
-            <label className="sm:col-span-2 text-sm font-medium text-slate-700">
-              {isAr ? 'ملاحظات الخطة' : 'Plan notes'}
-              <textarea value={planNotes} onChange={(e) => setPlanNotes(e.target.value)} rows={2} className="da-input mt-1" />
-            </label>
-            <label className="text-sm font-medium text-slate-700">
-              {isAr ? 'حالة الخطة' : 'Plan status'}
-              <select value={planStatus} onChange={(e) => setPlanStatus(e.target.value as TreatmentPlan['status'])} className="da-input mt-1">
-                <option value="draft">{isAr ? 'مسودة' : 'Draft'}</option>
-                <option value="accepted">{isAr ? 'معتمدة' : 'Accepted'}</option>
-                <option value="in_progress">{isAr ? 'قيد التنفيذ' : 'In progress'}</option>
-                <option value="completed">{isAr ? 'مكتملة' : 'Completed'}</option>
-                <option value="cancelled">{isAr ? 'ملغية' : 'Cancelled'}</option>
-              </select>
-            </label>
-            <div className="flex items-end gap-2">
-              {selectedPlan ? (
-                <>
-                  <button type="button" disabled={busy} onClick={() => void onSavePlan()} className="da-btn-primary !px-4 !py-2">
-                    {isAr ? 'حفظ الخطة' : 'Save plan'}
-                  </button>
-                  <button type="button" disabled={busy} onClick={() => void onDeletePlan()} className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700">
-                    {isAr ? 'حذف' : 'Delete'}
-                  </button>
-                </>
-              ) : (
-                <button type="button" disabled={busy} onClick={() => void onCreatePlan()} className="da-btn-primary !px-4 !py-2">
-                  {isAr ? 'إنشاء الخطة' : 'Create plan'}
-                </button>
-              )}
-            </div>
+      {loading ? (
+        <div className="flex h-40 items-center justify-center rounded-2xl border border-slate-200 bg-white p-8">
+          <p className="text-sm font-semibold text-slate-500 animate-pulse">
+            {isAr ? 'جاري تحميل خطة العلاج...' : 'Loading treatment plan...'}
+          </p>
+        </div>
+      ) : !selectedPlan ? (
+        /* Empty State */
+        <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-white p-12 text-center">
+          <div className="mb-4 flex size-14 items-center justify-center rounded-2xl bg-teal-50 text-teal-600">
+            <Sparkles className="size-7" />
           </div>
-
-          {selectedPlan ? (
-            <>
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-                <p className="mb-2 text-sm font-semibold text-emerald-900">
-                  {isAr ? 'توقيع قبول المريض للخطة' : 'Patient plan acceptance signature'}
-                </p>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <input
-                    value={acceptedByName}
-                    onChange={(e) => setAcceptedByName(e.target.value)}
-                    placeholder={isAr ? 'اسم المريض الكامل' : 'Patient full name'}
-                    className="da-input"
-                  />
-                  <input
-                    value={signatureText}
-                    onChange={(e) => setSignatureText(e.target.value)}
-                    placeholder={isAr ? 'التوقيع النصي' : 'Signature text'}
-                    className="da-input"
-                  />
-                </div>
-                <div className="mt-2 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <button type="button" disabled={busy} onClick={() => void onAcceptPlan()} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white">
-                      <CheckCircle2 className="size-4" />
-                      {isAr ? 'اعتماد الخطة' : 'Accept plan'}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void queuePrintPlan()}
-                      className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700"
-                    >
-                      <Printer className="size-4" />
-                      {isAr ? 'طباعة الخطة' : 'Print plan'}
-                    </button>
-                  </div>
-                  {selectedPlan.accepted_at ? (
-                    <span className="text-xs font-medium text-emerald-800">
-                      {isAr ? 'تم الاعتماد:' : 'Accepted:'} {format(parseISO(selectedPlan.accepted_at), 'PPp', { locale: loc })}
-                    </span>
-                  ) : null}
-                </div>
+          <h3 className="text-base font-bold text-slate-900">
+            {isAr ? 'لا توجد خطة علاج مسجلة لهذا المريض بعد' : 'No treatment plan for this patient yet'}
+          </h3>
+          <p className="mt-1.5 max-w-md text-xs text-slate-500">
+            {isAr
+              ? 'قم بإنشاء خطة علاج جديدة لتنظيم المراحل، اختيار الإجراءات من قائمة الأسعار، ومتابعة التكاليف والدفعات المالية.'
+              : 'Create a treatment plan to organize stages, select procedures from fee schedule, and track finances.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setNewPlanTitle(isAr ? 'خطة علاج شاملة' : 'Comprehensive Treatment Plan')
+              setNewPlanDiagnosis('')
+              setNewPlanModalOpen(true)
+            }}
+            className="da-btn-primary mt-5 !px-5 !py-2.5 text-xs font-bold"
+          >
+            <Plus className="size-4" />
+            <span>{isAr ? 'إنشاء خطة العلاج الآن' : 'Create Treatment Plan Now'}</span>
+          </button>
+        </div>
+      ) : (
+        /* Active Plan View */
+        <div className="space-y-6">
+          {/* Plan Settings Bar */}
+          <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+              <div className="flex flex-1 min-w-[260px] items-center gap-3">
+                <input
+                  type="text"
+                  value={planTitle}
+                  onChange={(e) => setPlanTitle(e.target.value)}
+                  className="w-full text-base font-bold text-slate-900 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-teal-500 focus:bg-slate-50 px-2 py-1 rounded-md outline-none transition"
+                  placeholder={isAr ? 'عنوان الخطة...' : 'Plan title...'}
+                />
               </div>
 
-              <div className="rounded-xl border border-slate-200 p-4">
-                <h3 className="mb-3 text-sm font-semibold text-slate-900">
-                  {isAr ? 'مراحل الخطة' : 'Plan stages'}
-                </h3>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <input value={String(stageOrder)} onChange={(e) => setStageOrder(Number(e.target.value || '1'))} className="da-input" placeholder={isAr ? 'ترتيب المرحلة' : 'Stage order'} />
-                  <input value={stageTitle} onChange={(e) => setStageTitle(e.target.value)} className="da-input" placeholder={isAr ? 'عنوان المرحلة' : 'Stage title'} />
-                  <textarea value={stageDescription} onChange={(e) => setStageDescription(e.target.value)} rows={2} className="da-input sm:col-span-2" placeholder={isAr ? 'وصف المرحلة' : 'Stage description'} />
-                  <input value={stageEstimated} onChange={(e) => setStageEstimated(e.target.value)} className="da-input" placeholder={isAr ? 'التكلفة التقديرية' : 'Estimated cost'} />
-                  <input value={stagePaid} onChange={(e) => setStagePaid(e.target.value)} className="da-input" placeholder={isAr ? 'المبلغ المدفوع' : 'Paid amount'} />
-                  <select value={stageStatus} onChange={(e) => setStageStatus(e.target.value as TreatmentPlanStage['status'])} className="da-input">
-                    <option value="pending">{isAr ? 'معلقة' : 'Pending'}</option>
-                    <option value="scheduled">{isAr ? 'مجدولة' : 'Scheduled'}</option>
-                    <option value="in_progress">{isAr ? 'قيد التنفيذ' : 'In progress'}</option>
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Status Dropdown without 'accepted' */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-semibold text-slate-500">
+                    {isAr ? 'حالة الخطة:' : 'Status:'}
+                  </span>
+                  <select
+                    value={planStatus}
+                    onChange={(e) => setPlanStatus(e.target.value as TreatmentPlan['status'])}
+                    className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-teal-500"
+                  >
+                    <option value="draft">{isAr ? 'مسودة' : 'Draft'}</option>
+                    <option value="in_progress">{isAr ? 'قيد التنفيذ' : 'In Progress'}</option>
                     <option value="completed">{isAr ? 'مكتملة' : 'Completed'}</option>
                     <option value="cancelled">{isAr ? 'ملغية' : 'Cancelled'}</option>
                   </select>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void onSavePlan()}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-teal-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-teal-700 transition"
+                  title={isAr ? 'حفظ تعديلات الخطة' : 'Save plan'}
+                >
+                  <Save className="size-3.5" />
+                  <span>{isAr ? 'حفظ' : 'Save'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void queuePrintPlan()}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                  title={isAr ? 'طباعة الخطة العلاجية' : 'Print plan'}
+                >
+                  <Printer className="size-3.5 text-slate-500" />
+                  <span>{isAr ? 'طباعة' : 'Print'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void onDeletePlan()}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100 transition"
+                  title={isAr ? 'حذف الخطة' : 'Delete plan'}
+                >
+                  <Trash2 className="size-3.5" />
+                  <span>{isAr ? 'حذف الخطة' : 'Delete'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Compact Diagnosis & Notes Row */}
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-600">
+                  {isAr ? 'التشخيص الطبي / ملخص الحالة' : 'Diagnosis'}
+                </label>
+                <input
+                  type="text"
+                  value={planDiagnosis}
+                  onChange={(e) => setPlanDiagnosis(e.target.value)}
+                  placeholder={isAr ? 'مثال: نخر متعدد، بحاجة لمعالجة لبية، فقدان أرحاء سفلية...' : 'e.g. Deep caries, missing lower molars...'}
+                  className="da-input !text-xs !py-2"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-600">
+                  {isAr ? 'ملاحظات الطبيب' : 'Clinical Notes'}
+                </label>
+                <input
+                  type="text"
+                  value={planNotes}
+                  onChange={(e) => setPlanNotes(e.target.value)}
+                  placeholder={isAr ? 'مثال: المريض يفضل التيجان الخزفية، يعاني من حساسية سابقة...' : 'e.g. Prefers aesthetic restorations...'}
+                  className="da-input !text-xs !py-2"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Financial KPI Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+              <span className="text-xs font-bold text-slate-500">
+                {isAr ? 'إجمالي التكلفة التقديرية' : 'Total Estimated Cost'}
+              </span>
+              <p className="mt-1 text-xl font-black text-slate-900">
+                {totalEstimated.toLocaleString()}{' '}
+                <span className="text-xs font-normal text-slate-500">{isAr ? 'ل.س' : 'SYP'}</span>
+              </p>
+            </div>
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm">
+              <span className="text-xs font-bold text-emerald-800">
+                {isAr ? 'المبلغ المدفوع' : 'Total Paid'}
+              </span>
+              <p className="mt-1 text-xl font-black text-emerald-700">
+                {totalPaid.toLocaleString()}{' '}
+                <span className="text-xs font-normal text-emerald-600">{isAr ? 'ل.س' : 'SYP'}</span>
+              </p>
+            </div>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 shadow-sm">
+              <span className="text-xs font-bold text-amber-900">
+                {isAr ? 'المبلغ المتبقي' : 'Remaining Balance'}
+              </span>
+              <p className="mt-1 text-xl font-black text-amber-700">
+                {totalRemaining.toLocaleString()}{' '}
+                <span className="text-xs font-normal text-amber-600">{isAr ? 'ل.س' : 'SYP'}</span>
+              </p>
+            </div>
+          </div>
+
+          {/* Treatment Stages Section */}
+          <div className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+              <div className="flex items-center gap-2">
+                <span className="flex size-7 items-center justify-center rounded-lg bg-teal-100 text-teal-800 font-bold text-xs">
+                  {stages.length}
+                </span>
+                <h3 className="text-base font-bold text-slate-900">
+                  {isAr ? 'مراحل وإجراءات الخطة العلاجية' : 'Treatment Stages & Procedures'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCatalogModalOpen(true)}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-teal-700 hover:text-teal-900 underline cursor-pointer"
+              >
+                <Sparkles className="size-3.5 text-teal-600" />
+                <span>{isAr ? 'دليل الإجراءات وقائمة الأسعار' : 'Fee Catalog & Price List'}</span>
+              </button>
+            </div>
+
+            {/* Quick Procedure Add / Edit Form */}
+            <div id="treatment-stage-form" className="rounded-2xl border border-teal-200 bg-teal-50/40 p-4 mb-6">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-teal-950">
+                  <Sparkles className="size-3.5 text-teal-600" />
+                  <span>
+                    {stageId
+                      ? (isAr ? 'تعديل المرحلة المحددة:' : 'Edit Selected Stage:')
+                      : (isAr ? 'إضافة إجراء سريع من قائمة الأسعار الموحدة (تنزيل تلقائي):' : 'Quick add procedure from catalog (Auto-fill):')}
+                  </span>
+                </span>
+                {stageId ? (
+                  <button
+                    type="button"
+                    onClick={resetStageForm}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-800"
+                  >
+                    <X className="size-3.5" />
+                    <span>{isAr ? 'إلغاء التعديل' : 'Cancel'}</span>
+                  </button>
+                ) : null}
+              </div>
+
+              {/* Catalog Dropdown */}
+              <div className="mb-3">
+                <select
+                  defaultValue=""
+                  onChange={(e) => {
+                    const id = Number(e.target.value)
+                    if (!id) return
+                    const it = catalog.find((c) => c.id === id)
+                    if (it) {
+                      setStageTitle(isAr ? it.name_ar : (it.name_en || it.name_ar))
+                      setStageDescription(it.description || '')
+                      setStageEstimated(String(it.default_cost))
+                    }
+                    e.target.value = ''
+                  }}
+                  className="da-input w-full bg-white text-xs font-semibold text-slate-800"
+                >
+                  <option value="">{isAr ? '-- انقر هنا لاختيار الإجراء وتنزيل البيانات والأسعار تلقائياً --' : '-- Choose a procedure to auto-fill --'}</option>
+                  {['restorative', 'endodontics', 'prosthetics', 'implants', 'surgery', 'periodontics', 'cosmetic', 'preventive', 'other'].map((catKey) => {
+                    const groupItems = catalog.filter((c) => c.category === catKey)
+                    if (groupItems.length === 0) return null
+                    const catLabel =
+                      catKey === 'restorative' ? (isAr ? 'حشوات وترميم' : 'Restorative') :
+                      catKey === 'endodontics' ? (isAr ? 'علاج عصب وجذور' : 'Endodontics') :
+                      catKey === 'prosthetics' ? (isAr ? 'تعويضات وتيجان' : 'Prosthetics') :
+                      catKey === 'implants' ? (isAr ? 'زراعة الأسنان' : 'Implants') :
+                      catKey === 'surgery' ? (isAr ? 'جراحة وقلع' : 'Oral Surgery') :
+                      catKey === 'periodontics' ? (isAr ? 'تنظيف ولثة' : 'Periodontics') :
+                      catKey === 'cosmetic' ? (isAr ? 'تجميل وتبييض' : 'Cosmetics') :
+                      catKey === 'preventive' ? (isAr ? 'وقاية وأطفال' : 'Preventive') :
+                      (isAr ? 'أخرى' : 'Other')
+                    return (
+                      <optgroup key={catKey} label={catLabel}>
+                        {groupItems.map((it) => (
+                          <option key={it.id} value={it.id}>
+                            {isAr ? it.name_ar : it.name_en} — ({it.default_cost.toLocaleString()} ل.س)
+                          </option>
+                        ))}
+                      </optgroup>
+                    )
+                  })}
+                </select>
+              </div>
+
+              {/* Form Inputs Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                <div className="sm:col-span-5">
+                  <label className="mb-1 block text-[11px] font-bold text-slate-700">
+                    {isAr ? 'عنوان المرحلة / الإجراء *' : 'Stage / Procedure Title *'}
+                  </label>
+                  <input
+                    type="text"
+                    value={stageTitle}
+                    onChange={(e) => setStageTitle(e.target.value)}
+                    placeholder={isAr ? 'مثال: حشوة كمبوزيت ضرس 36' : 'e.g. Composite filling molar 36'}
+                    className="da-input bg-white !text-xs !py-1.5"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="mb-1 block text-[11px] font-bold text-slate-700">
+                    {isAr ? 'التكلفة التقديرية' : 'Estimated Cost'}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={stageEstimated}
+                    onChange={(e) => setStageEstimated(e.target.value)}
+                    placeholder="0"
+                    className="da-input bg-white !text-xs !py-1.5 font-bold text-slate-800"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="mb-1 block text-[11px] font-bold text-slate-700">
+                    {isAr ? 'المدفوع' : 'Paid Amount'}
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={stagePaid}
+                    onChange={(e) => setStagePaid(e.target.value)}
+                    placeholder="0"
+                    className="da-input bg-white !text-xs !py-1.5 font-bold text-emerald-700"
+                  />
+                </div>
+
+                <div className="sm:col-span-3">
+                  <label className="mb-1 block text-[11px] font-bold text-slate-700">
+                    {isAr ? 'حالة المرحلة' : 'Status'}
+                  </label>
+                  <select
+                    value={stageStatus}
+                    onChange={(e) => setStageStatus(e.target.value as TreatmentPlanStage['status'])}
+                    className="da-input bg-white !text-xs !py-1.5 font-semibold text-slate-800"
+                  >
+                    <option value="pending">{isAr ? 'معلقة' : 'Pending'}</option>
+                    <option value="in_progress">{isAr ? 'قيد التنفيذ' : 'In Progress'}</option>
+                    <option value="completed">{isAr ? 'مكتملة' : 'Completed'}</option>
+                    <option value="cancelled">{isAr ? 'ملغية' : 'Cancelled'}</option>
+                  </select>
+                </div>
+
+                <div className="sm:col-span-6">
+                  <label className="mb-1 block text-[11px] font-bold text-slate-700">
+                    {isAr ? 'الوصف السريري أو رقم السن (اختياري)' : 'Clinical notes / Tooth (optional)'}
+                  </label>
+                  <input
+                    type="text"
+                    value={stageDescription}
+                    onChange={(e) => setStageDescription(e.target.value)}
+                    placeholder={isAr ? 'مثال: السن رقم 16 - تنظيف نخر عميق مع تبطين' : 'e.g. Tooth 16 - deep caries lining'}
+                    className="da-input bg-white !text-xs !py-1.5"
+                  />
+                </div>
+
+                <div className="sm:col-span-3">
+                  <label className="mb-1 block text-[11px] font-bold text-slate-700">
+                    {isAr ? 'ربط بموعد للمريض' : 'Linked Appointment'}
+                  </label>
                   <select
                     value={stageAppointmentId ?? ''}
                     onChange={(e) => setStageAppointmentId(e.target.value ? Number(e.target.value) : null)}
-                    className="da-input"
+                    className="da-input bg-white !text-xs !py-1.5"
                   >
-                    <option value="">{isAr ? 'بدون موعد مرتبط' : 'No linked appointment'}</option>
+                    <option value="">{isAr ? 'بدون موعد' : 'No appointment'}</option>
                     {appointments.map((a) => (
                       <option key={a.id} value={a.id}>
                         {format(parseISO(a.start_time), 'PPp', { locale: loc })}
                       </option>
                     ))}
                   </select>
-                  <input type="date" value={stageDueDate} onChange={(e) => setStageDueDate(e.target.value)} className="da-input" />
-                </div>
-                <div className="mt-3 flex gap-2">
-                  <button type="button" disabled={busy} onClick={() => void onSaveStage()} className="da-btn-primary !px-4 !py-2">
-                    {stageId ? (isAr ? 'تحديث المرحلة' : 'Update stage') : (isAr ? 'إضافة مرحلة' : 'Add stage')}
-                  </button>
-                  {stageId ? (
-                    <button type="button" onClick={resetStageForm} className="da-btn-secondary !px-4 !py-2">
-                      {isAr ? 'إلغاء التعديل' : 'Cancel edit'}
-                    </button>
-                  ) : null}
                 </div>
 
-                <ul className="mt-4 space-y-2">
-                  {stages.map((s) => (
-                    <li key={s.id} className="rounded-lg border border-slate-200 p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="font-semibold text-slate-900">
-                          {isAr ? 'المرحلة' : 'Stage'} {s.stage_order}: {s.title}
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <button type="button" onClick={() => onEditStage(s)} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
-                            <Link2 className="size-3.5" />
-                            {isAr ? 'تعديل' : 'Edit'}
+                <div className="sm:col-span-3">
+                  <label className="mb-1 block text-[11px] font-bold text-slate-700">
+                    {isAr ? 'تاريخ الاستحقاق' : 'Due Date'}
+                  </label>
+                  <input
+                    type="date"
+                    value={stageDueDate}
+                    onChange={(e) => setStageDueDate(e.target.value)}
+                    className="da-input bg-white !text-xs !py-1.5"
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="mt-3 flex items-center justify-end gap-2">
+                {stageId ? (
+                  <button
+                    type="button"
+                    onClick={resetStageForm}
+                    className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                  >
+                    {isAr ? 'إلغاء' : 'Cancel'}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void onSaveStage()}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-teal-600 px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-teal-700 transition"
+                >
+                  <Plus className="size-4" />
+                  <span>
+                    {stageId
+                      ? (isAr ? 'تحديث المرحلة' : 'Update Stage')
+                      : (isAr ? 'إضافة المرحلة للخطة' : 'Add Stage to Plan')}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Stages List */}
+            <div className="space-y-2.5">
+              {stages.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-6 text-center text-xs text-slate-500">
+                  {isAr
+                    ? 'لم يتم إضافة أي مراحل أو إجراءات لهذه الخطة بعد. استخدم النموذج أعلاه لاختيار وإضافة الإجراءات.'
+                    : 'No stages added yet. Use the quick selector above to add procedures.'}
+                </div>
+              ) : (
+                stages.map((s, idx) => {
+                  const isCompleted = s.status === 'completed'
+                  const stageRem = Math.max(0, s.estimated_cost - s.paid_amount)
+                  return (
+                    <div
+                      key={s.id}
+                      className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3.5 transition-all ${
+                        isCompleted
+                          ? 'border-emerald-200 bg-emerald-50/30'
+                          : s.status === 'in_progress'
+                          ? 'border-sky-200 bg-sky-50/20'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      {/* Left Side: Order, Title, Description */}
+                      <div className="flex items-start gap-3 min-w-[240px] flex-1">
+                        <button
+                          type="button"
+                          onClick={() => void onToggleStageStatus(s)}
+                          className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-lg border text-xs font-bold transition-all ${
+                            isCompleted
+                              ? 'border-emerald-500 bg-emerald-600 text-white'
+                              : 'border-slate-300 bg-slate-100 text-slate-500 hover:border-emerald-400 hover:text-emerald-700'
+                          }`}
+                          title={isCompleted ? (isAr ? 'انقر لإلغاء الاكتمال' : 'Mark pending') : (isAr ? 'انقر لتعليم المرحلة كمكتملة' : 'Mark completed')}
+                        >
+                          {isCompleted ? <Check className="size-3.5 stroke-[3]" /> : idx + 1}
+                        </button>
+
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className={`text-sm font-bold ${isCompleted ? 'text-slate-500 line-through' : 'text-slate-900'}`}>
+                              {s.title}
+                            </h4>
+                            <span
+                              className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${
+                                isCompleted
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : s.status === 'in_progress'
+                                  ? 'bg-sky-100 text-sky-800'
+                                  : s.status === 'cancelled'
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              {s.status === 'completed'
+                                ? (isAr ? 'مكتملة' : 'Completed')
+                                : s.status === 'in_progress'
+                                ? (isAr ? 'قيد التنفيذ' : 'In Progress')
+                                : s.status === 'cancelled'
+                                ? (isAr ? 'ملغية' : 'Cancelled')
+                                : (isAr ? 'معلقة' : 'Pending')}
+                            </span>
+                          </div>
+                          {s.description ? (
+                            <p className="mt-0.5 text-xs text-slate-600 leading-relaxed">{s.description}</p>
+                          ) : null}
+                          {s.appointment_start_time ? (
+                            <p className="mt-1 flex items-center gap-1 text-[11px] text-teal-700 font-medium">
+                              <Calendar className="size-3 text-teal-600" />
+                              <span>
+                                {isAr ? 'موعد مرتبط:' : 'Linked:'} {format(parseISO(s.appointment_start_time), 'PPp', { locale: loc })}
+                              </span>
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {/* Right Side: Financial Badges & Action Buttons */}
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="text-end">
+                          <p className="text-xs font-bold text-slate-800">
+                            {s.estimated_cost.toLocaleString()} {isAr ? 'ل.س' : 'SYP'}
+                          </p>
+                          <p className="text-[11px] font-medium text-slate-500">
+                            {isAr ? 'المدفوع:' : 'Paid:'}{' '}
+                            <span className="font-bold text-emerald-700">{s.paid_amount.toLocaleString()}</span>
+                            {stageRem > 0 ? (
+                              <span className="ms-1.5 text-amber-700 font-bold">
+                                ({isAr ? 'باقي' : 'due'} {stageRem.toLocaleString()})
+                              </span>
+                            ) : null}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => onEditStage(s)}
+                            className="flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition"
+                            title={isAr ? 'تعديل المرحلة' : 'Edit stage'}
+                          >
+                            <Pencil className="size-3.5" />
                           </button>
-                          <button type="button" onClick={() => void onDeleteStage(s.id)} className="inline-flex items-center gap-1 rounded-md bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700">
+                          <button
+                            type="button"
+                            onClick={() => void onDeleteStage(s.id)}
+                            className="flex size-8 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 transition"
+                            title={isAr ? 'حذف المرحلة' : 'Delete stage'}
+                          >
                             <Trash2 className="size-3.5" />
-                            {isAr ? 'حذف' : 'Delete'}
                           </button>
                         </div>
                       </div>
-                      <p className="mt-1 text-xs text-slate-600">{s.description || '—'}</p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {isAr ? 'التكلفة:' : 'Cost:'} {s.estimated_cost} | {isAr ? 'المدفوع:' : 'Paid:'} {s.paid_amount} | {isAr ? 'المتبقي:' : 'Remaining:'} {Math.max(0, s.estimated_cost - s.paid_amount)}
-                      </p>
-                      {s.appointment_start_time ? (
-                        <p className="text-xs text-slate-500">
-                          {isAr ? 'الموعد المرتبط:' : 'Linked appointment:'} {format(parseISO(s.appointment_start_time), 'PPp', { locale: loc })}
-                        </p>
-                      ) : null}
-                    </li>
-                  ))}
-                  {stages.length === 0 ? (
-                    <li className="text-sm text-slate-500">{isAr ? 'لا توجد مراحل بعد.' : 'No stages yet.'}</li>
-                  ) : null}
-                </ul>
-              </div>
-            </>
-          ) : null}
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
         </div>
       )}
+
+      {/* New Plan Modal */}
+      {newPlanModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <div className="flex items-center gap-2">
+                <FileText className="size-5 text-teal-600" />
+                <h3 className="text-base font-bold text-slate-900">
+                  {isAr ? 'إنشاء خطة علاج جديدة' : 'Create New Treatment Plan'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNewPlanModalOpen(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-700">
+                  {isAr ? 'عنوان خطة العلاج *' : 'Plan Title *'}
+                </label>
+                <input
+                  type="text"
+                  value={newPlanTitle}
+                  onChange={(e) => setNewPlanTitle(e.target.value)}
+                  placeholder={isAr ? 'مثال: خطة تجميلية، معالجة لبية، زراعة...' : 'e.g. Cosmetic Plan, Implants...'}
+                  className="da-input"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs font-bold text-slate-700">
+                  {isAr ? 'التشخيص الأولي (اختياري)' : 'Initial Diagnosis (optional)'}
+                </label>
+                <textarea
+                  rows={2}
+                  value={newPlanDiagnosis}
+                  onChange={(e) => setNewPlanDiagnosis(e.target.value)}
+                  placeholder={isAr ? 'ملخص تشخيص الحالة أو أسباب الخطة...' : 'Summary of diagnosis...'}
+                  className="da-input"
+                />
+              </div>
+
+              <div className="mt-6 flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setNewPlanModalOpen(false)}
+                  className="da-btn-secondary !text-xs !px-4 !py-2"
+                >
+                  {isAr ? 'إلغاء' : 'Cancel'}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void onCreateNewPlan()}
+                  className="da-btn-primary !text-xs !px-5 !py-2"
+                >
+                  <Plus className="size-4" />
+                  <span>{isAr ? 'إنشاء الخطة والبدء' : 'Create Plan'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {confirmModal}
+
+      <TreatmentCatalogModal
+        isOpen={catalogModalOpen}
+        onClose={() => setCatalogModalOpen(false)}
+        onItemUpdated={() => void loadCatalog()}
+      />
+
       <div className="fixed start-[-12000px] top-0 -z-10" aria-hidden>
         {printSnap ? <TreatmentPlanPrintDocument ref={printRef} {...printSnap} /> : null}
       </div>
-    </section>
+    </div>
   )
 }

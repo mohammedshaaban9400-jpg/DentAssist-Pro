@@ -1,9 +1,23 @@
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { BookOpenText, HelpCircle, Lightbulb, MessageCircleQuestion, Search } from 'lucide-react'
+import {
+  BookOpenText,
+  Bot,
+  HelpCircle,
+  Lightbulb,
+  MessageCircleQuestion,
+  Search,
+  Sparkles,
+  Zap,
+} from 'lucide-react'
+import {
+  ListPageHeader,
+  ListPageLayout,
+} from '@/components/layout/ListPageLayout'
 
 type QaItem = {
   id: string
+  category: 'general' | 'patients' | 'clinical' | 'appointments' | 'finance' | 'system'
   tags: string[]
   q: { ar: string; en: string }
   a: { ar: string; en: string }
@@ -12,312 +26,136 @@ type QaItem = {
 const QA_BANK: QaItem[] = [
   {
     id: 'app-purpose',
+    category: 'general',
     tags: ['وظيفة', 'وظيفته', 'ما هو البرنامج', 'purpose', 'what is', 'about app', 'عن البرنامج'],
     q: {
       ar: 'ما وظيفة برنامج DentAssist Pro؟',
       en: 'What is DentAssist Pro used for?',
     },
     a: {
-      ar: 'DentAssist Pro هو نظام لإدارة عيادة الأسنان: تنظيم المرضى، المواعيد، المخطط السني، الخطط العلاجية، الفواتير، الصندوق، والتقارير. الهدف هو تسهيل العمل اليومي وتقليل الأخطاء الإدارية.',
-      en: 'DentAssist Pro is a dental clinic management system: patients, appointments, dental chart, treatment plans, invoices, cash box, and reports. Its goal is to streamline daily workflow and reduce administrative errors.',
+      ar: 'DentAssist Pro هو نظام سحابي وأوفلاين متكامل لإدارة عيادة الأسنان: تنظيم ملفات المرضى، المواعيد السريرية، المخطط السني التفاعلي (Odontogram)، الخطط العلاجية، الفواتير والذمم المالية، الصندوق، وتقارير الأرباح.',
+      en: 'DentAssist Pro is an offline-capable dental clinic operating system: managing patients, appointments, interactive dental chart, treatment plans, invoicing, cash box, and financial reports.',
     },
   },
   {
     id: 'developer',
+    category: 'general',
     tags: ['مبرمج', 'المطور', 'المهندس', 'developer', 'programmer', 'who made', 'who built'],
     q: {
-      ar: 'من مبرمج البرنامج؟',
+      ar: 'من مبرمج ومطور البرنامج؟',
       en: 'Who is the software developer?',
     },
     a: {
-      ar: 'مبرمج ومطور البرنامج هو المهندس محمد شعبان ريمه.',
-      en: 'The software developer is Eng. Muhammad Sha\'ban Rima.',
+      ar: 'مبرمج ومطور البرنامج هو المهندس محمد شعبان ريمه. الهاتف: 00963981061026.',
+      en: 'The software developer is Eng. Muhammad Sha\'ban Rima. Phone: 00963981061026.',
     },
   },
   {
     id: 'login',
+    category: 'system',
     tags: ['تسجيل الدخول', 'دخول', 'login', 'sign in', 'pin', 'password', 'كلمة المرور', 'رمز'],
     q: {
-      ar: 'كيف أسجل الدخول؟',
-      en: 'How do I sign in?',
+      ar: 'كيف أسجل الدخول وأحمي العيادة؟',
+      en: 'How do I sign in and secure the app?',
     },
     a: {
-      ar: 'من شاشة الدخول اختر اسم المستخدم ثم أدخل الرمز/كلمة المرور واضغط دخول. في أول تشغيل أنشئ حساب الطبيب الرئيسي أولاً. إذا طُلب تغيير الرمز لأسباب أمنية، أدخل رمزًا جديدًا وتابع.',
-      en: 'From the login screen, select a username, enter PIN/password, then sign in. On first launch, create the primary doctor account first. If forced PIN reset appears, set a new PIN and continue.',
+      ar: 'من شاشة الدخول اختر اسم المستخدم وأدخل رمز PIN المكون من 4 إلى 6 أرقام. تبقى جلستك نشطة ومحفوظة حتى لو قمت بتحديث الصفحة (F5). يمكنك تغيير الرمز من الإعدادات > الأمان.',
+      en: 'Select your account from login, enter your 4-6 digit PIN. Your session is now persisted across browser reloads. You can change your PIN in Settings > Security.',
     },
   },
   {
     id: 'patients-create',
+    category: 'patients',
     tags: ['patient', 'patients', 'مريض', 'المرضى', 'إضافة', 'add'],
     q: {
       ar: 'كيف أضيف مريضًا جديدًا؟',
       en: 'How do I add a new patient?',
     },
     a: {
-      ar: 'من القائمة الجانبية ادخل إلى "المرضى" ثم اضغط "مريض جديد". أدخل البيانات الأساسية واحفظ. بعد الحفظ يفتح لك الملف السريري والمخطط السني.',
-      en: 'Open "Patients" from the sidebar, click "New patient", fill the basic details, then save. After saving, the clinical record and dental chart become available.',
-    },
-  },
-  {
-    id: 'patients-edit-delete',
-    tags: ['تعديل مريض', 'حذف مريض', 'edit patient', 'delete patient', 'ملف المريض'],
-    q: {
-      ar: 'كيف أعدل أو أحذف ملف المريض؟',
-      en: 'How do I edit or delete a patient file?',
-    },
-    a: {
-      ar: 'من صفحة المرضى افتح الملف، عدّل الحقول المطلوبة ثم احفظ. للحذف استخدم إجراء الحذف من قائمة المرضى أو من الملف بعد التأكيد. الحذف يزيل البيانات المرتبطة بالمريض.',
-      en: 'Open the patient file from Patients, edit required fields, then save. For deletion, use delete action from list/detail and confirm. Deleting removes related patient data.',
+      ar: 'من القائمة الجانبية ادخل إلى "المرضى" ثم اضغط "مريض جديد". أدخل الاسم والهاتف وتاريخ الميلاد، واحفظ. فور الحفظ يفتح لك الملف السريري الكامل والمخطط السني.',
+      en: 'Open "Patients" from the sidebar, click "New Patient", fill basic contact details and save. The clinical odontogram will be automatically unlocked.',
     },
   },
   {
     id: 'dental-chart',
+    category: 'clinical',
     tags: ['مخطط سني', 'odontogram', 'chart', 'سن', 'tooth', 'fdi', 'حالة السن'],
     q: {
-      ar: 'كيف أستخدم المخطط السني؟',
-      en: 'How do I use the dental chart?',
+      ar: 'كيف أستخدم المخطط السني التفاعلي؟',
+      en: 'How do I use the interactive dental chart?',
     },
     a: {
-      ar: 'افتح ملف المريض ثم قسم المخطط السني. انقر على السن لتحديد الحالة (تسوس، حشوة، تاج...) وأضف ملاحظة عند الحاجة ثم احفظ. يمكنك إضافة بند فاتورة مرتبط بالسن مباشرة من نافذة السن.',
-      en: 'Open a patient file then dental chart section. Click a tooth to set status (caries, filling, crown, etc.), add notes if needed, then save. You can also create an invoice line tied to that tooth directly.',
+      ar: 'افتح ملف المريض ثم قسم المخطط السني. انقر على أي سن لفتح لوحة الحالة (سليم، تسوس، حشوة، تاج، سحب عصب، زراعة، قلع). يمكنك أيضاً إضافة بند فاتورة مباشر للسن من نفس اللوحة.',
+      en: 'Open a patient file, scroll to the dental chart, click any tooth to update its clinical status (sound, caries, filled, crown, root canal, implant). You can also attach an invoice line directly.',
     },
   },
   {
     id: 'appointments-flow',
-    tags: ['appointment', 'appointments', 'موعد', 'مواعيد', 'العمليات اليومية'],
+    category: 'appointments',
+    tags: ['appointment', 'appointments', 'موعد', 'مواعيد', 'العمليات اليومية', 'حجز'],
     q: {
-      ar: 'كيف أنشئ موعدًا؟',
-      en: 'How do I create an appointment?',
+      ar: 'كيف أنشئ موعدًا وأرسل تذكير واتساب؟',
+      en: 'How do I schedule an appointment and send WhatsApp reminders?',
     },
     a: {
-      ar: 'اذهب إلى "العمليات اليومية" ثم اضغط "موعد جديد". اختر المريض، وقت البداية والنهاية، الحالة، ثم احفظ.',
-      en: 'Go to "Daily Operations", click "New appointment", select patient, start/end time, status, then save.',
-    },
-  },
-  {
-    id: 'appointments-status',
-    tags: ['حالة الموعد', 'scheduled', 'completed', 'cancelled', 'تحديث الموعد', 'appointment status'],
-    q: {
-      ar: 'كيف أعدل حالة الموعد؟',
-      en: 'How do I update appointment status?',
-    },
-    a: {
-      ar: 'ادخل إلى العمليات اليومية، افتح الموعد ثم غيّر الحالة (مجدول/مكتمل/ملغى) واحفظ. هذا ينعكس مباشرة في الإحصائيات والتتبع.',
-      en: 'Go to Daily Operations, open the appointment, change status (scheduled/completed/cancelled), and save. It updates tracking and stats immediately.',
-    },
-  },
-  {
-    id: 'whatsapp-reminders',
-    tags: ['واتساب', 'whatsapp', 'تذكير', 'reminder', 'رسالة', 'message'],
-    q: {
-      ar: 'كيف يعمل تذكير واتساب؟',
-      en: 'How do WhatsApp reminders work?',
-    },
-    a: {
-      ar: 'يعرض النظام المواعيد القريبة ويجهّز رسالة واتساب جاهزة للمريض. الإرسال النهائي يتم من واتساب بواسطة المستخدم. تأكد من رقم الهاتف بصيغة صحيحة.',
-      en: 'The system detects near appointments and prepares a prefilled WhatsApp message. Final send is done by the user in WhatsApp. Ensure patient phone format is valid.',
-    },
-  },
-  {
-    id: 'backup',
-    tags: ['backup', 'restore', 'نسخ', 'احتياطي', 'استيراد', 'تصدير'],
-    q: {
-      ar: 'كيف أعمل نسخة احتياطية وأسترجعها؟',
-      en: 'How do I create and restore backups?',
-    },
-    a: {
-      ar: 'من "الإعدادات" (صلاحية طبيب): أدخل كلمة مرور قوية ثم اضغط "تصدير النسخة الاحتياطية". للاسترجاع استخدم "استيراد" بنفس كلمة المرور. الاسترجاع يستبدل البيانات الحالية بالكامل.',
-      en: 'From "Settings" (doctor role): enter a strong passphrase and click "Export backup". For restore, click "Import" and use the same passphrase. Restore replaces current data completely.',
-    },
-  },
-  {
-    id: 'csv-export',
-    tags: ['csv', 'excel', 'تصدير', 'اكسل', 'تقارير csv'],
-    q: {
-      ar: 'كيف أصدّر البيانات إلى Excel؟',
-      en: 'How do I export data to Excel?',
-    },
-    a: {
-      ar: 'من الإعدادات افتح قسم CSV Export، ثم اختر النوع المطلوب (مرضى/فواتير/بنود/تقارير). تُحفظ الملفات بترميز مناسب لعرض العربية في Excel.',
-      en: 'In Settings open CSV Export section, choose dataset type (patients/invoices/lines/reports). Files are saved with encoding suitable for Arabic display in Excel.',
+      ar: 'اذهب إلى "العمليات اليومية"، اضغط "حجز موعد جديد"، اختر المريض والوقت. عند اقتراب الموعد (قبل 24 ساعة أو ساعتين)، يظهر زر التذكير السريع لإرسال رسالة واتساب بنقرة واحدة.',
+      en: 'Go to "Daily Operations", click "New Appointment", pick a patient and time. Automated WhatsApp reminder buttons will appear in the reminders banner 24h and 2h before the visit.',
     },
   },
   {
     id: 'invoices',
-    tags: ['invoice', 'invoices', 'فاتورة', 'فواتير', 'دفع'],
+    category: 'finance',
+    tags: ['فاتورة', 'فواتير', 'دفع', 'سداد', 'invoice', 'payment', 'debt'],
     q: {
-      ar: 'كيف أنشئ فاتورة؟',
-      en: 'How do I create an invoice?',
+      ar: 'كيف أنشئ فاتورة وأتابع الذمم والديون؟',
+      en: 'How do I manage invoices and patient debts?',
     },
     a: {
-      ar: 'افتح "الفواتير" واضغط "فاتورة جديدة"، اختر المريض، أضف البنود (الوصف والسعر)، وحدد حالة الدفع ثم احفظ.',
-      en: 'Open "Invoices", click "New invoice", choose the patient, add line items (description and price), set payment status, then save.',
+      ar: 'من صفحة "الفواتير"، اضغط "فاتورة جديدة"، اختر المريض وأضف بنود المعالجة والأسعار. يمكنك تبديل حالة الفاتورة بين "مدفوعة" و"معلقة" بنقرة واحدة على شارة الحالة.',
+      en: 'From "Invoices", click "New Invoice", select a patient, add treatment lines and amounts. Toggle payment status between Paid and Pending with a single click on the status pill.',
     },
   },
   {
     id: 'cashbox',
-    tags: ['الصندوق', 'cashbox', 'cash box', 'حركة مالية', 'transaction'],
+    category: 'finance',
+    tags: ['صندوق', 'كاش', 'مصروف', 'إيراد', 'cash', 'cashbox', 'expense'],
     q: {
-      ar: 'كيف أستخدم قسم الصندوق؟',
-      en: 'How do I use the cash box section?',
+      ar: 'كيف أستخدم الصندوق لتسجيل الإيرادات والمصروفات؟',
+      en: 'How do I track daily clinic expenses and collections in the Cashbox?',
     },
     a: {
-      ar: 'قسم الصندوق مخصص لتسجيل الحركات المالية (دخل/مصروف) ومتابعة الرصيد التشغيلي. يفضل توثيق الوصف والمبلغ والتاريخ بدقة لتقارير صحيحة.',
-      en: 'Cash box is used to record financial transactions (income/expense) and track operational balance. Keep description, amount, and date accurate for reliable reporting.',
+      ar: 'في صفحة "الصندوق"، اضغط "حركة نقدية جديدة"، اختر إما "سند قبض" للمداخيل أو "سند صرف" لفواتير العيادة والمستهلكات. يوضح شريط المؤشرات الرصيد الصافي الفعلي فوراً.',
+      en: 'In "Cashbox", click "New Transaction", select either Income or Expense, enter description and amount. Net cash position updates automatically.',
     },
   },
   {
-    id: 'reports',
-    tags: ['تقارير', 'reports', 'dashboard', 'إحصائيات', 'ارباح', 'إيراد'],
+    id: 'backup',
+    category: 'system',
+    tags: ['نسخ احتياطي', 'تصدير', 'حفظ', 'قاعدة بيانات', 'backup', 'restore', 'export'],
     q: {
-      ar: 'كيف أقرأ التقارير ولوحة الإحصائيات؟',
-      en: 'How do I read reports and dashboard?',
+      ar: 'كيف أعمل نسخة احتياطية للبيانات؟',
+      en: 'How do I backup clinic data?',
     },
     a: {
-      ar: 'لوحة الإحصائيات تعرض الإيراد اليومي/الشهري، حالات المواعيد، والديون المعلقة. قسم التقارير يعطي تحليلًا أدق حسب البيانات المدخلة. دقة النتائج تعتمد على اكتمال إدخال الفواتير والحركات.',
-      en: 'Dashboard shows daily/monthly revenue, appointment status mix, and pending debt. Reports provide deeper analysis based on recorded data. Accuracy depends on complete invoice/transaction entries.',
-    },
-  },
-  {
-    id: 'lab',
-    tags: ['مخبر', 'مختبر', 'dental lab', 'lab order', 'إرسال إلى المخبر'],
-    q: {
-      ar: 'كيف أستخدم قسم إرسال إلى المخبر؟',
-      en: 'How do I use Send to Dental Lab?',
-    },
-    a: {
-      ar: 'افتح قسم إرسال إلى المخبر، أنشئ طلب جديد (اسم المريض، اسم المخبر، نوع العمل)، ثم تابع الحالة (قيد العمل/تم الاستلام/متأخر) حتى إغلاق الطلب.',
-      en: 'Open Send to Dental Lab, create a new order (patient, lab, work type), then keep status updated (progress/received/delayed) until completion.',
-    },
-  },
-  {
-    id: 'distributors',
-    tags: ['موزعين', 'distributors', 'موردين', 'suppliers'],
-    q: {
-      ar: 'ما فائدة قسم الموزعين؟',
-      en: 'What is the distributors section for?',
-    },
-    a: {
-      ar: 'قسم الموزعين لتنظيم بيانات الموردين، المبالغ المدفوعة والمتبقية، ومتابعة التعاملات المالية معهم بطريقة واضحة.',
-      en: 'Distributors section helps manage supplier data, paid and remaining balances, and related financial follow-up.',
-    },
-  },
-  {
-    id: 'settings',
-    tags: ['إعدادات', 'settings', 'language', 'logo', 'clinic', 'اللغة', 'الشعار'],
-    q: {
-      ar: 'ماذا يمكنني تعديل من الإعدادات؟',
-      en: 'What can I configure in Settings?',
-    },
-    a: {
-      ar: 'يمكن تعديل اللغة، بيانات العيادة (الاسم/الهاتف/العنوان/الشعار)، إعدادات العملة، النسخ الاحتياطي، التصدير CSV، وإدارة المستخدمين (بحسب الصلاحية).',
-      en: 'Settings allow changing language, clinic profile (name/phone/address/logo), currency setup, backup, CSV export, and user management (role-based).',
-    },
-  },
-  {
-    id: 'users-management',
-    tags: ['مستخدم', 'users', 'add user', 'صلاحيات', 'accounts'],
-    q: {
-      ar: 'كيف أدير حسابات المستخدمين؟',
-      en: 'How do I manage user accounts?',
-    },
-    a: {
-      ar: 'من الإعدادات > إدارة المستخدمين يمكن إضافة مستخدم جديد، تعديل الاسم أو الرمز، وحذف الحساب. يفضّل أن تبقى دائمًا حسابات بديلة للطوارئ.',
-      en: 'In Settings > User Management you can add users, update username/PIN, and delete accounts. Keep at least one backup account for emergency access.',
-    },
-  },
-  {
-    id: 'license-activation',
-    tags: ['تفعيل', 'license', 'activation', 'trial', 'اشتراك'],
-    q: {
-      ar: 'كيف يتم التفعيل بعد انتهاء التجربة؟',
-      en: 'How does activation work after trial?',
-    },
-    a: {
-      ar: 'عند انتهاء التجربة تظهر شاشة التفعيل. أدخل رقم العملية بعد الدفع وارسل الطلب للتحقق. عند قبول الطلب يصبح الترخيص فعالًا على الجهاز المرتبط.',
-      en: 'After trial expiry, activation screen appears. Enter payment reference and submit for verification. Once approved, license becomes active for the linked machine.',
-    },
-  },
-  {
-    id: 'offline-mode',
-    tags: ['اوفلاين', 'بدون انترنت', 'offline', 'internet', 'شبكة'],
-    q: {
-      ar: 'هل يعمل البرنامج بدون إنترنت؟',
-      en: 'Does the app work without internet?',
-    },
-    a: {
-      ar: 'نعم، العمل اليومي داخل البرنامج محلي (Offline) على الجهاز. الإنترنت يُستخدم فقط للميزات التي تتطلب تحقق خارجي مثل الترخيص عند الحاجة.',
-      en: 'Yes, daily operations are local/offline on your machine. Internet is only required for external-verification features like licensing when needed.',
-    },
-  },
-  {
-    id: 'data-location',
-    tags: ['بيانات', 'قاعدة البيانات', 'sqlite', 'where data', 'storage'],
-    q: {
-      ar: 'أين تُحفظ بيانات العيادة؟',
-      en: 'Where is clinic data stored?',
-    },
-    a: {
-      ar: 'البيانات تُحفظ محليًا على نفس جهاز التشغيل ضمن قاعدة SQLite وملفات الأصول (الصور/الشعار). لذلك النسخ الاحتياطي الدوري ضروري جدًا.',
-      en: 'Data is stored locally on the same machine using SQLite plus local asset files (images/logo). Regular backups are essential.',
-    },
-  },
-  {
-    id: 'security-best-practice',
-    tags: ['أمان', 'security', 'password', 'pin', 'نسخ احتياطي', 'backup safety'],
-    q: {
-      ar: 'ما أفضل ممارسات الأمان داخل البرنامج؟',
-      en: 'What are security best practices?',
-    },
-    a: {
-      ar: 'استخدم رموز قوية للحسابات، لا تشارك حساب الطبيب، فعّل نسخة احتياطية مشفرة بشكل دوري، واحفظ النسخ خارج الجهاز الرئيسي.',
-      en: 'Use strong account PINs/passwords, avoid sharing doctor account, run encrypted backups regularly, and store backup files off the main machine.',
-    },
-  },
-  {
-    id: 'about-docs',
-    tags: ['سياسة الخصوصية', 'شروط الاستخدام', 'guide', 'about', 'وثائق'],
-    q: {
-      ar: 'أين أجد سياسة الخصوصية ودليل الاستخدام؟',
-      en: 'Where can I find privacy policy and user guide?',
-    },
-    a: {
-      ar: 'من القائمة الجانبية افتح "حول البرنامج"، وستجد تبويبات: نظرة عامة، سياسة الخصوصية، شروط الاستخدام، ودليل الاستخدام.',
-      en: 'Open "About" from the sidebar; you will find tabs for Overview, Privacy Policy, Terms of Use, and User Guide.',
-    },
-  },
-  {
-    id: 'roles',
-    tags: ['role', 'doctor', 'reception', 'صلاحيات', 'طبيب', 'استقبال'],
-    q: {
-      ar: 'ما الفرق بين صلاحية الطبيب والاستقبال؟',
-      en: 'What is the difference between doctor and reception roles?',
-    },
-    a: {
-      ar: 'حساب الطبيب يملك صلاحيات أوسع مثل النسخ الاحتياطي، الصندوق، والتقارير. الاستقبال يركز على العمليات اليومية والمواعيد والبيانات التشغيلية.',
-      en: 'Doctor accounts have broader access like backup, cash box, and reports. Reception accounts focus on daily operations and routine data management.',
+      ar: 'ادخل إلى "الإعدادات" ثم قسم "النسخ الاحتياطي والأمان". اضغط "تصدير نسخة احتياطية" لتحميل ملف مشفر يحتوي على كافة المرضى والفواتير والمواعيد. احفظ الملف على قرص خارجي دورياً.',
+      en: 'Go to Settings > Backup & Security, click "Export Backup" to download an encrypted backup file containing all clinical records, invoices, and charts.',
     },
   },
 ]
 
-function normalize(text: string): string {
-  return text.toLowerCase().trim()
+function normalize(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
-function getAnswer(query: string): QaItem | null {
-  const q = normalize(query)
+function getAnswer(rawQuery: string): QaItem | null {
+  const q = normalize(rawQuery)
   if (!q) return null
-  // Force exact developer identity response for direct developer/programmer questions.
-  if (
-    q.includes('من مبرمج البرنامج') ||
-    q.includes('من المطور') ||
-    q.includes('من المبرمج') ||
-    q.includes('who is the software developer') ||
-    q.includes('who is the developer') ||
-    q.includes('who programmed')
-  ) {
-    return QA_BANK.find((x) => x.id === 'developer') ?? null
-  }
   let best: { item: QaItem; score: number } | null = null
   for (const item of QA_BANK) {
     let score = 0
@@ -334,123 +172,195 @@ function getAnswer(query: string): QaItem | null {
 export function AskMePage() {
   const { i18n } = useTranslation()
   const lang = i18n.language === 'ar' ? 'ar' : 'en'
+  const isAr = lang === 'ar'
   const [query, setQuery] = useState('')
   const [submitted, setSubmitted] = useState('')
+  const [activeCategory, setActiveCategory] = useState<string>('all')
 
   const result = useMemo(() => getAnswer(submitted), [submitted])
 
-  const suggestions = QA_BANK.slice(0, 8)
+  const filteredBank = useMemo(() => {
+    if (activeCategory === 'all') return QA_BANK
+    return QA_BANK.filter((item) => item.category === activeCategory)
+  }, [activeCategory])
+
+  const categories = [
+    { id: 'all', label: isAr ? 'جميع المواضيع' : 'All Topics' },
+    { id: 'patients', label: isAr ? 'إدارة المرضى' : 'Patients' },
+    { id: 'clinical', label: isAr ? 'المخطط السني' : 'Dental Chart' },
+    { id: 'appointments', label: isAr ? 'المواعيد وواتساب' : 'Appointments' },
+    { id: 'finance', label: isAr ? 'الفواتير والصندوق' : 'Billing & Cash' },
+    { id: 'system', label: isAr ? 'النظام والأمان' : 'Security' },
+  ]
 
   return (
-    <div className="-m-5 flex h-[calc(100%+2.5rem)] flex-col bg-white md:-m-8 md:h-[calc(100%+4rem)]">
-      <div className="border-b border-slate-200 px-6 py-4">
-        <h1 className="text-xl font-bold tracking-tight text-slate-800">
-          {lang === 'ar' ? 'اسألني' : 'Ask Me'}
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          {lang === 'ar'
-            ? 'مساعد تعليمي أوفلاين: يشرح فقط طريقة عمل البرنامج ووظائفه بدون إنترنت.'
-            : 'Offline educational assistant: explains only app workflows and features (no internet required).'}
-        </p>
-      </div>
-
-      <div className="flex-1 overflow-auto p-6">
-        <div className="mx-auto w-full max-w-4xl space-y-6">
-          <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault()
-                setSubmitted(query)
-              }}
-              className="flex flex-col gap-3 sm:flex-row"
-            >
-              <div className="relative flex-1">
-                <MessageCircleQuestion className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder={
-                    lang === 'ar'
-                      ? 'مثال: ما وظيفة البرنامج؟ أو من مبرمج البرنامج؟'
-                      : 'Example: What is this app used for? or Who is the developer?'
-                  }
-                  className="da-input ps-10"
-                />
-              </div>
-              <button type="submit" className="da-btn-primary gap-2">
-                <Search className="size-4" />
-                {lang === 'ar' ? 'اسأل' : 'Ask'}
-              </button>
-            </form>
+    <ListPageLayout>
+      {/* ─── Header ─── */}
+      <ListPageHeader>
+        <div className="flex items-center gap-3">
+          <div
+            className="flex size-11 items-center justify-center rounded-2xl text-white shadow-sm"
+            style={{
+              background: 'linear-gradient(135deg, #0d9488, #6366f1)',
+              boxShadow: '0 4px 12px rgba(99, 102, 241, 0.25)',
+            }}
+          >
+            <Bot className="size-5.5" />
           </div>
-
-          <div className="grid gap-4 lg:grid-cols-3">
-            <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 lg:col-span-1">
-              <p className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                <Lightbulb className="size-4 text-amber-500" />
-                {lang === 'ar' ? 'أسئلة مقترحة' : 'Suggested questions'}
-              </p>
-              <div className="space-y-2">
-                {suggestions.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => {
-                      setQuery(s.q[lang])
-                      setSubmitted(s.q[lang])
-                    }}
-                    className="w-full cursor-pointer rounded-xl border border-slate-200 bg-white px-3 py-2 text-start text-sm text-slate-700 transition hover:border-teal-200 hover:bg-teal-50/40"
-                  >
-                    {s.q[lang]}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm lg:col-span-2">
-              {!submitted ? (
-                <div className="flex min-h-[220px] flex-col items-center justify-center gap-3 text-center text-slate-500">
-                  <HelpCircle className="size-10 text-slate-300" />
-                  <p className="max-w-md text-sm">
-                    {lang === 'ar'
-                      ? 'اكتب سؤالك عن وظائف البرنامج وطريقة استخدامه، مثل: ما وظيفة البرنامج؟ أو كيف أضيف مريض؟'
-                      : 'Ask about app features and workflows, e.g. What is the app used for? or How do I add a patient?'}
-                  </p>
-                </div>
-              ) : result ? (
-                <div className="space-y-4">
-                  <div className="rounded-xl border border-teal-100 bg-teal-50/60 px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-teal-700">
-                      {lang === 'ar' ? 'السؤال الأقرب' : 'Closest match'}
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-teal-900">{result.q[lang]}</p>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-4">
-                    <p className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                      <BookOpenText className="size-4 text-teal-600" />
-                      {lang === 'ar' ? 'الشرح' : 'Explanation'}
-                    </p>
-                    <p className="text-sm leading-7 text-slate-700">{result.a[lang]}</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                    {lang === 'ar'
-                      ? 'لم أجد إجابة مطابقة بالكامل. جرّب صياغة أوضح (مثال: كيف أنشئ فاتورة؟).'
-                      : 'No close answer found. Try a clearer query (e.g. How do I create an invoice?).'}
-                  </div>
-                  <p className="text-sm text-slate-600">
-                    {lang === 'ar'
-                      ? 'يمكنك أيضًا اختيار سؤال من "الأسئلة المقترحة".'
-                      : 'You can also pick one of the suggested questions.'}
-                  </p>
-                </div>
-              )}
-            </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+              <span>{isAr ? 'المساعد الذكي للعيادة' : 'Ask Me Assistant'}</span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 border border-indigo-200/80 px-2 py-0.2 text-[10px] font-bold text-indigo-700">
+                <Sparkles className="size-3" />
+                <span>Offline AI</span>
+              </span>
+            </h1>
+            <p className="text-xs text-slate-500 font-medium">
+              {isAr
+                ? 'مرجع فوري ذكي يشرح كافة وظائف البرنامج وإجراءاته السريرية والإدارية بدون إنترنت'
+                : 'Instant offline guide for clinical workflows, billing, charts, and system settings'}
+            </p>
           </div>
         </div>
+      </ListPageHeader>
+
+      {/* ─── Search Prompt Bar ─── */}
+      <div className="border-b border-slate-100 bg-gradient-to-b from-slate-50/70 to-white p-4 sm:p-6">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (query.trim()) setSubmitted(query.trim())
+          }}
+          className="mx-auto max-w-2xl"
+        >
+          <div className="relative flex items-center rounded-xl border border-slate-200/90 bg-white p-2 shadow-2xs transition-all focus-within:border-teal-500 focus-within:ring-3 focus-within:ring-teal-500/20">
+            <MessageCircleQuestion className="pointer-events-none size-5 text-teal-600 start-3 ms-2 shrink-0" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={
+                isAr
+                  ? 'اكتب سؤالك هنا... مثال: كيف أستخدم المخطط السني؟ أو كيف أنشئ فاتورة؟'
+                  : 'Ask anything... e.g. How do I use the dental chart? or How to schedule?'
+              }
+              className="w-full bg-transparent px-3 text-xs sm:text-sm font-medium text-slate-800 outline-none placeholder:text-slate-400"
+            />
+            <button
+              type="submit"
+              className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-2xl px-5 py-2 text-xs font-bold text-white shadow-sm transition-all hover:shadow hover:scale-[1.02] active:scale-[0.98] shrink-0"
+              style={{
+                background: 'linear-gradient(135deg, var(--color-primary, #0d9488), #6366f1)',
+              }}
+            >
+              <Search className="size-3.5" />
+              <span>{isAr ? 'اسأل' : 'Ask'}</span>
+            </button>
+          </div>
+        </form>
+
+        {/* Category Pills */}
+        <div className="mx-auto mt-4 flex max-w-3xl flex-wrap items-center justify-center gap-1.5">
+          {categories.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setActiveCategory(c.id)}
+              className={`cursor-pointer rounded-xl px-3 py-1 text-xs font-bold transition-all duration-150 ${
+                activeCategory === c.id
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-white text-slate-600 border border-slate-200/80 hover:bg-slate-50'
+              }`}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
       </div>
-    </div>
+
+      {/* ─── Content Split: Suggested Questions + Answers ─── */}
+      <div className="grid flex-1 items-start gap-4 p-4 sm:p-6 lg:grid-cols-3">
+        {/* Suggested Questions List */}
+        <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 p-4 lg:col-span-1">
+          <p className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500">
+            <Lightbulb className="size-4 text-amber-500" />
+            <span>{isAr ? 'أسئلة سريعة شائعة' : 'Common Questions'}</span>
+          </p>
+          <div className="space-y-2">
+            {filteredBank.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => {
+                  setQuery(s.q[lang])
+                  setSubmitted(s.q[lang])
+                }}
+                className="w-full cursor-pointer rounded-xl border border-slate-200/80 bg-white p-3 text-start text-xs font-bold text-slate-800 shadow-2xs transition-all hover:border-teal-300 hover:bg-teal-50/50 hover:text-teal-900 active:scale-98"
+              >
+                {s.q[lang]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Answer Viewer Panel */}
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-2xs sm:p-6 lg:col-span-2 min-h-[320px] flex flex-col justify-center">
+          {!submitted ? (
+            <div className="flex flex-col items-center justify-center gap-3 text-center text-slate-400 py-10">
+              <div className="flex size-14 items-center justify-center rounded-2xl bg-slate-50 text-slate-300 ring-1 ring-slate-100">
+                <HelpCircle className="size-7" />
+              </div>
+              <p className="max-w-sm text-sm font-bold text-slate-700">
+                {isAr
+                  ? 'اختر سؤالاً من القائمة أو اكتب سؤالك في شريط البحث أعلاه'
+                  : 'Pick a question from the list or type in the search bar above'}
+              </p>
+              <p className="max-w-md text-xs text-slate-400">
+                {isAr
+                  ? 'يقوم المساعد بتحليل كلماتك والإجابة بدقة عن أي ميزة في العيادة دون الحاجة للاتصال بالإنترنت.'
+                  : 'Instant offline guidance for dental clinic workflows and shortcuts.'}
+              </p>
+            </div>
+          ) : result ? (
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-teal-200/80 bg-teal-50/70 p-4 shadow-2xs">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-teal-800">
+                  {isAr ? 'السؤال المطابق' : 'Closest Match'}
+                </p>
+                <p className="mt-1 text-sm font-extrabold text-teal-950">{result.q[lang]}</p>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-5 shadow-2xs">
+                <div className="mb-3 flex items-center gap-2">
+                  <BookOpenText className="size-4 text-teal-600" />
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                    {isAr ? 'الشرح والخطوات السريرية' : 'Detailed Instructions'}
+                  </p>
+                </div>
+                <p className="text-xs sm:text-sm font-medium leading-7 text-slate-800">
+                  {result.a[lang]}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3 py-8 text-center">
+              <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 ring-1 ring-amber-100">
+                <Zap className="size-6" />
+              </div>
+              <p className="text-sm font-bold text-amber-900">
+                {isAr
+                  ? 'لم أجد إجابة مطابقة بالكامل لهذا النص'
+                  : 'No exact answer found for your query'}
+              </p>
+              <p className="mx-auto max-w-sm text-xs text-slate-500">
+                {isAr
+                  ? 'جرّب صياغة أوضح (مثال: "المخطط السني" أو "كيف أنشئ فاتورة") أو انقر على أحد الأسئلة المقترحة.'
+                  : 'Try rephrasing with simpler keywords or pick one of the questions on the left.'}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </ListPageLayout>
   )
 }

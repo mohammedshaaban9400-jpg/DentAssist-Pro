@@ -11,6 +11,13 @@ import type {
   TeethStatusRow,
   TreatmentPlan,
   TreatmentPlanStage,
+  OrthodonticCase,
+  OrthodonticVisit,
+  OrthodonticStats,
+  DentalImplant,
+  InventoryItem,
+  InventoryStats,
+  TreatmentCatalogItem,
 } from '@/types/clinical'
 import type { DbUser } from '@/types/user'
 
@@ -523,6 +530,21 @@ export async function importDatabaseBackupEncryptedFromFile(
   throw new Error('importEncryptedBackupFromFile unavailable')
 }
 
+export async function getEncryptedBackupString(passphrase: string): Promise<string> {
+  const d = window.dentassist
+  if (!d?.getEncryptedBackupString) throw new Error('getEncryptedBackupString unavailable')
+  return d.getEncryptedBackupString(passphrase)
+}
+
+export async function applyEncryptedBackupString(
+  encrypted: string,
+  passphrase: string,
+): Promise<{ ok: true }> {
+  const d = window.dentassist
+  if (!d?.applyEncryptedBackupString) throw new Error('applyEncryptedBackupString unavailable')
+  return d.applyEncryptedBackupString(encrypted, passphrase)
+}
+
 export function supportsEncryptedBackupExport(): boolean {
   return !!window.dentassist?.exportEncryptedBackup
 }
@@ -640,6 +662,114 @@ export async function deleteLabOrder(id: number): Promise<void> {
   await api().db({ op: 'deleteLabOrder', id })
 }
 
+export async function listOrthodonticCases(filter?: {
+  patientId?: number
+  status?: string
+  query?: string
+}): Promise<OrthodonticCase[]> {
+  return (await api().db({
+    op: 'listOrthodonticCases',
+    patientId: filter?.patientId,
+    status: filter?.status,
+    query: filter?.query,
+  })) as OrthodonticCase[]
+}
+
+export async function getOrthodonticCase(id: number): Promise<OrthodonticCase | null> {
+  return (await api().db({ op: 'getOrthodonticCase', id })) as OrthodonticCase | null
+}
+
+export async function createOrthodonticCase(input: {
+  patientId: number
+  startDate: string
+  estimatedDurationMonths?: number
+  status?: 'active' | 'retention' | 'completed' | 'suspended'
+  classification?: string
+  applianceType?: string
+  archType?: 'upper' | 'lower' | 'both'
+  extractionPlan?: string | null
+  chiefComplaint?: string | null
+  diagnosisNotes?: string | null
+  totalCost?: number
+  downPayment?: number
+  monthlyInstallment?: number
+  retainerType?: string | null
+}): Promise<number> {
+  return (await api().db({ op: 'createOrthodonticCase', ...input })) as number
+}
+
+export async function updateOrthodonticCase(
+  id: number,
+  input: {
+    startDate?: string
+    estimatedDurationMonths?: number
+    status?: 'active' | 'retention' | 'completed' | 'suspended'
+    classification?: string
+    applianceType?: string
+    archType?: 'upper' | 'lower' | 'both'
+    extractionPlan?: string | null
+    chiefComplaint?: string | null
+    diagnosisNotes?: string | null
+    totalCost?: number
+    downPayment?: number
+    monthlyInstallment?: number
+    retainerType?: string | null
+  },
+): Promise<void> {
+  await api().db({ op: 'updateOrthodonticCase', id, ...input })
+}
+
+export async function deleteOrthodonticCase(id: number): Promise<void> {
+  await api().db({ op: 'deleteOrthodonticCase', id })
+}
+
+export async function listOrthodonticVisits(caseId: number): Promise<OrthodonticVisit[]> {
+  return (await api().db({ op: 'listOrthodonticVisits', caseId })) as OrthodonticVisit[]
+}
+
+export async function createOrthodonticVisit(input: {
+  caseId: number
+  visitDate: string
+  upperWire?: string | null
+  lowerWire?: string | null
+  elasticPrescription?: string | null
+  actionsJson?: string | null
+  brokenBracketsCount?: number
+  oralHygieneRating?: number
+  painLevel?: number
+  amountPaid?: number
+  notes?: string | null
+  nextAppointmentDate?: string | null
+}): Promise<number> {
+  return (await api().db({ op: 'createOrthodonticVisit', ...input })) as number
+}
+
+export async function updateOrthodonticVisit(
+  id: number,
+  input: {
+    upperWire?: string | null
+    lowerWire?: string | null
+    elasticPrescription?: string | null
+    actionsJson?: string | null
+    brokenBracketsCount?: number
+    oralHygieneRating?: number
+    painLevel?: number
+    amountPaid?: number
+    notes?: string | null
+    nextAppointmentDate?: string | null
+  },
+): Promise<void> {
+  await api().db({ op: 'updateOrthodonticVisit', id, ...input })
+}
+
+export async function deleteOrthodonticVisit(id: number): Promise<void> {
+  await api().db({ op: 'deleteOrthodonticVisit', id })
+}
+
+export async function getOrthodonticStats(): Promise<OrthodonticStats> {
+  return (await api().db({ op: 'getOrthodonticStats' })) as OrthodonticStats
+}
+
 /** Opens http(s) URLs in the system browser (Electron) or a new tab (browser). */
 export async function openExternalUrl(url: string): Promise<boolean> {
   const d = window.dentassist
@@ -647,3 +777,188 @@ export async function openExternalUrl(url: string): Promise<boolean> {
   window.open(url, '_blank', 'noopener,noreferrer')
   return true
 }
+
+// ----------------------------------------------------
+// Dental Implants (Implantology Tracker)
+// ----------------------------------------------------
+export async function listDentalImplants(
+  patientId?: number,
+  status?: string,
+  query?: string,
+): Promise<DentalImplant[]> {
+  return (await api().db({ op: 'listDentalImplants', patientId, status, query })) as DentalImplant[]
+}
+
+export async function getDentalImplant(id: number): Promise<DentalImplant | null> {
+  return (await api().db({ op: 'getDentalImplant', id })) as DentalImplant | null
+}
+
+export async function createDentalImplant(input: {
+  patientId: number
+  toothNumber: number
+  brand: string
+  model?: string | null
+  diameterMm: number
+  lengthMm: number
+  lotNumber?: string | null
+  serialNumber?: string | null
+  insertionTorqueNcm?: number | null
+  isqValue?: number | null
+  boneGraftType?: string | null
+  membraneUsed?: number
+  sinusLift?: string | null
+  placementDate: string
+  healingPeriodMonths?: number
+  targetLoadingDate?: string | null
+  healingAbutmentDate?: string | null
+  healingAbutmentSize?: string | null
+  finalLoadingDate?: string | null
+  prostheticType?: string | null
+  status?: string
+  notes?: string | null
+}): Promise<number> {
+  return (await api().db({ op: 'createDentalImplant', ...input })) as number
+}
+
+export async function updateDentalImplant(
+  id: number,
+  input: {
+    toothNumber?: number
+    brand?: string
+    model?: string | null
+    diameterMm?: number
+    lengthMm?: number
+    lotNumber?: string | null
+    serialNumber?: string | null
+    insertionTorqueNcm?: number | null
+    isqValue?: number | null
+    boneGraftType?: string | null
+    membraneUsed?: number
+    sinusLift?: string | null
+    placementDate?: string
+    healingPeriodMonths?: number
+    targetLoadingDate?: string | null
+    healingAbutmentDate?: string | null
+    healingAbutmentSize?: string | null
+    finalLoadingDate?: string | null
+    prostheticType?: string | null
+    status?: string
+    notes?: string | null
+  },
+): Promise<void> {
+  await api().db({ op: 'updateDentalImplant', id, ...input })
+}
+
+export async function deleteDentalImplant(id: number): Promise<void> {
+  await api().db({ op: 'deleteDentalImplant', id })
+}
+
+// ----------------------------------------------------
+// Dental Stock & Inventory
+// ----------------------------------------------------
+export async function listInventoryItems(params?: {
+  category?: string
+  query?: string
+  lowStockOnly?: boolean
+  expiringSoon?: boolean
+}): Promise<InventoryItem[]> {
+  return (await api().db({ op: 'listInventoryItems', ...params })) as InventoryItem[]
+}
+
+export async function getInventoryItem(id: number): Promise<InventoryItem | null> {
+  return (await api().db({ op: 'getInventoryItem', id })) as InventoryItem | null
+}
+
+export async function createInventoryItem(input: {
+  name: string
+  category: string
+  specification?: string | null
+  quantity: number
+  unit: string
+  minThreshold: number
+  costPerUnit: number
+  distributorId?: number | null
+  expiryDate?: string | null
+  batchNumber?: string | null
+  location?: string | null
+  notes?: string | null
+}): Promise<number> {
+  return (await api().db({ op: 'createInventoryItem', ...input })) as number
+}
+
+export async function updateInventoryItem(
+  id: number,
+  input: {
+    name?: string
+    category?: string
+    specification?: string | null
+    quantity?: number
+    unit?: string
+    minThreshold?: number
+    costPerUnit?: number
+    distributorId?: number | null
+    expiryDate?: string | null
+    batchNumber?: string | null
+    location?: string | null
+    notes?: string | null
+  },
+): Promise<void> {
+  await api().db({ op: 'updateInventoryItem', id, ...input })
+}
+
+export async function adjustInventoryQuantity(id: number, delta: number): Promise<InventoryItem> {
+  return (await api().db({ op: 'adjustInventoryQuantity', id, delta })) as InventoryItem
+}
+
+export async function deleteInventoryItem(id: number): Promise<void> {
+  await api().db({ op: 'deleteInventoryItem', id })
+}
+
+export async function getInventoryStats(): Promise<InventoryStats> {
+  return (await api().db({ op: 'getInventoryStats' })) as InventoryStats
+}
+
+// ----------------------------------------------------
+// Treatment Catalog / Fee Schedule
+// ----------------------------------------------------
+export async function listTreatmentCatalog(params?: {
+  category?: string
+  query?: string
+  activeOnly?: boolean
+}): Promise<TreatmentCatalogItem[]> {
+  return (await api().db({ op: 'listTreatmentCatalog', ...params })) as TreatmentCatalogItem[]
+}
+
+export async function createTreatmentCatalogItem(input: {
+  category: string
+  code?: string | null
+  nameAr: string
+  nameEn: string
+  defaultCost: number
+  description?: string | null
+  durationMinutes?: number
+  isActive?: number
+}): Promise<number> {
+  return (await api().db({ op: 'createTreatmentCatalogItem', ...input })) as number
+}
+
+export async function updateTreatmentCatalogItem(
+  id: number,
+  input: {
+    category?: string
+    code?: string | null
+    nameAr?: string
+    nameEn?: string
+    defaultCost?: number
+    description?: string | null
+    durationMinutes?: number
+    isActive?: number
+  },
+): Promise<void> {
+  await api().db({ op: 'updateTreatmentCatalogItem', id, ...input })
+}
+
+export async function deleteTreatmentCatalogItem(id: number): Promise<void> {
+  await api().db({ op: 'deleteTreatmentCatalogItem', id })
+}
+

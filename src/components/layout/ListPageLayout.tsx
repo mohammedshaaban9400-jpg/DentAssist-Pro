@@ -1,8 +1,8 @@
 import { forwardRef, type ReactNode } from 'react'
 
-export function ListPageLayout({ children }: { children: ReactNode }) {
+export function ListPageLayout({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className="list-page flex min-h-0 flex-col bg-white -m-3 sm:-m-5 md:-m-8 md:h-[calc(100%+4rem)] md:overflow-hidden">
+    <div className={`list-page flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xs transition-all duration-200 mb-8 md:mb-0 ${className}`.trim()}>
       {children}
     </div>
   )
@@ -30,9 +30,11 @@ export const DesktopTableScroll = forwardRef<HTMLDivElement, { children: ReactNo
   },
 )
 
-export function DesktopTablePane({ children }: { children: ReactNode }) {
-  return <div className="desktop-table-pane">{children}</div>
-}
+export const DesktopTablePane = forwardRef<HTMLDivElement, { children: ReactNode; className?: string }>(
+  function DesktopTablePane({ children, className = '' }, ref) {
+    return <div ref={ref} className={`desktop-table-pane ${className}`.trim()}>{children}</div>
+  },
+)
 
 export function MobileCard({ children, className = '' }: { children: ReactNode; className?: string }) {
   return <article className={`mobile-card ${className}`.trim()}>{children}</article>

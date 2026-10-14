@@ -12,6 +12,8 @@ import { DentalLabPage } from '@/pages/DentalLabPage'
 import { DistributorsPage } from '@/pages/DistributorsPage'
 import { AboutPage } from '@/pages/AboutPage'
 import { AskMePage } from '@/pages/AskMePage'
+import { OrthodonticsPage } from '@/pages/OrthodonticsPage'
+import { InventoryPage } from '@/pages/InventoryPage'
 import { useSessionStore } from '@/stores/sessionStore'
 
 function RoleHome() {
@@ -29,12 +31,14 @@ export function LoggedInRoutes() {
         <Route path="patients" element={<PatientsPage />} />
         <Route path="patients/new" element={<PatientDetailPage />} />
         <Route path="patients/:id" element={<PatientDetailPage />} />
+        <Route path="orthodontics" element={<OrthodonticsPage />} />
         <Route path="appointments" element={<AppointmentsPage />} />
         <Route path="cashbox" element={<CashboxPage />} />
         <Route path="invoices" element={<InvoicesPage />} />
         <Route path="reports" element={<ReportsPage />} />
         <Route path="dental-lab" element={<DentalLabPage />} />
         <Route path="distributors" element={<DistributorsPage />} />
+        <Route path="inventory" element={<InventoryPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="ask-me" element={<AskMePage />} />
         <Route path="about" element={<AboutPage />} />

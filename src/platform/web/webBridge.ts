@@ -81,6 +81,25 @@ export function createWebBridge(): DentAssistApi {
       await putAsset(rel, mimeFromPath(rel), fileBuffer)
       return rel
     },
+    getEncryptedBackupString: async (passphrase: string) => {
+      if (passphrase.length < 8) throw new Error('Backup passphrase must be at least 8 characters')
+      await initSqlJsDatabase()
+      const dbBytes = exportDatabaseBytes()
+      const appFiles = await collectAppFiles()
+      return encryptBackupPayload(
+        {
+          v: 2,
+          exportedAt: new Date().toISOString(),
+          db: uint8ToBase64(dbBytes),
+          appFiles,
+        },
+        passphrase,
+      )
+    },
+    applyEncryptedBackupString: async (encrypted: string, passphrase: string) => {
+      await applyEncryptedBackupFile(encrypted, passphrase)
+      return { ok: true as const }
+    },
     exportEncryptedBackup: async (passphrase: string) => {
       if (passphrase.length < 8) throw new Error('Backup passphrase must be at least 8 characters')
       await initSqlJsDatabase()
@@ -139,6 +158,45 @@ export function createWebBridge(): DentAssistApi {
       URL.revokeObjectURL(url)
       return { ok: true as const, filePath: a.download }
     },
+    selectFolderDialog: async () => {
+      if (typeof window !== 'undefined' && 'showDirectoryPicker' in window) {
+        try {
+          const dirHandle = await (window as any).showDirectoryPicker({ mode: 'readwrite' })
+          return dirHandle?.name || 'Google Drive'
+        } catch {
+          return null
+        }
+      }
+      return null
+    },
+    detectGoogleDriveFolder: async () => null,
+    saveBackupToFolder: async (_folderPath: string, passphrase: string) => {
+      await initSqlJsDatabase()
+      const dbBytes = exportDatabaseBytes()
+      const appFiles = await collectAppFiles()
+      const enc = encryptBackupPayload(
+        {
+          v: 2,
+          exportedAt: new Date().toISOString(),
+          db: uint8ToBase64(dbBytes),
+          appFiles,
+        },
+        passphrase,
+      )
+      const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+      const defaultName = `dentassist-backup-${dateStr}.dentassist`
+      const saved = await saveBackupBlob(enc, defaultName)
+      return {
+        ok: true as const,
+        fileName: defaultName,
+        filePath: saved.ok ? saved.filePath : defaultName,
+        size: enc.length,
+        createdTime: new Date().toISOString(),
+      }
+    },
+    listBackupsInFolder: async () => [],
+    restoreBackupFromFilePath: async () => ({ ok: true as const }),
+    openFolderInExplorer: async () => false,
     windowMinimize: async () => {},
     windowToggleMaximize: async () => ({ maximized: false }),
     windowClose: async () => {},

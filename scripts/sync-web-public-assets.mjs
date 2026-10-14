@@ -12,9 +12,13 @@ const publicFavicon = path.join(root, 'public', 'favicon.png')
 
 async function syncFromBuildIcon() {
   if (!fs.existsSync(iconPng)) return false
-  fs.copyFileSync(iconPng, publicLogo)
-  await sharp(iconPng).resize(192, 192, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toFile(publicFavicon)
-  console.log('[sync-web-public] Synced build/icon.png → public/logo.png & public/favicon.png')
+  if (!fs.existsSync(publicLogo)) {
+    fs.copyFileSync(iconPng, publicLogo)
+  }
+  if (!fs.existsSync(publicFavicon)) {
+    await sharp(iconPng).resize(192, 192, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toFile(publicFavicon)
+  }
+  console.log('[sync-web-public] Brand assets verified (public/logo.png & public/favicon.png)')
   return true
 }
 

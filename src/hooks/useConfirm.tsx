@@ -6,6 +6,7 @@ type Options = {
   confirmLabel?: string
   cancelLabel?: string
   danger?: boolean
+  isDestructive?: boolean
 }
 
 type State = {
@@ -63,7 +64,7 @@ export function useConfirm() {
       title={state.opts.title}
       confirmLabel={state.opts.confirmLabel}
       cancelLabel={state.opts.cancelLabel}
-      danger={state.opts.danger ?? true}
+      danger={state.opts.danger ?? state.opts.isDestructive ?? true}
       onConfirm={handleConfirm}
       onCancel={handleCancel}
     />

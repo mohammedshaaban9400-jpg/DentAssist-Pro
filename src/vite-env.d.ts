@@ -189,6 +189,195 @@ export type DbInvokePayload =
     }
   | { op: 'updateLabOrderStatus'; id: number; status: 'progress' | 'received' | 'delayed' }
   | { op: 'deleteLabOrder'; id: number }
+  | { op: 'listOrthodonticCases'; patientId?: number; status?: string; query?: string }
+  | { op: 'getOrthodonticCase'; id: number }
+  | {
+      op: 'createOrthodonticCase'
+      patientId: number
+      startDate: string
+      estimatedDurationMonths?: number
+      status?: 'active' | 'retention' | 'completed' | 'suspended'
+      classification?: string
+      applianceType?: string
+      archType?: 'upper' | 'lower' | 'both'
+      extractionPlan?: string | null
+      chiefComplaint?: string | null
+      diagnosisNotes?: string | null
+      totalCost?: number
+      downPayment?: number
+      monthlyInstallment?: number
+      retainerType?: string | null
+    }
+  | {
+      op: 'updateOrthodonticCase'
+      id: number
+      startDate?: string
+      estimatedDurationMonths?: number
+      status?: 'active' | 'retention' | 'completed' | 'suspended'
+      classification?: string
+      applianceType?: string
+      archType?: 'upper' | 'lower' | 'both'
+      extractionPlan?: string | null
+      chiefComplaint?: string | null
+      diagnosisNotes?: string | null
+      totalCost?: number
+      downPayment?: number
+      monthlyInstallment?: number
+      retainerType?: string | null
+    }
+  | { op: 'deleteOrthodonticCase'; id: number }
+  | { op: 'listOrthodonticVisits'; caseId: number }
+  | {
+      op: 'createOrthodonticVisit'
+      caseId: number
+      visitDate: string
+      upperWire?: string | null
+      lowerWire?: string | null
+      elasticPrescription?: string | null
+      actionsJson?: string | null
+      brokenBracketsCount?: number
+      oralHygieneRating?: number
+      painLevel?: number
+      amountPaid?: number
+      notes?: string | null
+      nextAppointmentDate?: string | null
+    }
+  | {
+      op: 'updateOrthodonticVisit'
+      id: number
+      upperWire?: string | null
+      lowerWire?: string | null
+      elasticPrescription?: string | null
+      actionsJson?: string | null
+      brokenBracketsCount?: number
+      oralHygieneRating?: number
+      painLevel?: number
+      amountPaid?: number
+      notes?: string | null
+      nextAppointmentDate?: string | null
+    }
+  | { op: 'deleteOrthodonticVisit'; id: number }
+  | { op: 'getOrthodonticStats' }
+
+  // Dental Implants
+  | { op: 'listDentalImplants'; patientId?: number; status?: string; query?: string }
+  | { op: 'getDentalImplant'; id: number }
+  | {
+      op: 'createDentalImplant'
+      patientId: number
+      toothNumber: number
+      brand: string
+      model?: string | null
+      diameterMm: number
+      lengthMm: number
+      lotNumber?: string | null
+      serialNumber?: string | null
+      insertionTorqueNcm?: number | null
+      isqValue?: number | null
+      boneGraftType?: string | null
+      membraneUsed?: number
+      sinusLift?: string | null
+      placementDate: string
+      healingPeriodMonths?: number
+      targetLoadingDate?: string | null
+      healingAbutmentDate?: string | null
+      healingAbutmentSize?: string | null
+      finalLoadingDate?: string | null
+      prostheticType?: string | null
+      status?: string
+      notes?: string | null
+    }
+  | {
+      op: 'updateDentalImplant'
+      id: number
+      toothNumber?: number
+      brand?: string
+      model?: string | null
+      diameterMm?: number
+      lengthMm?: number
+      lotNumber?: string | null
+      serialNumber?: string | null
+      insertionTorqueNcm?: number | null
+      isqValue?: number | null
+      boneGraftType?: string | null
+      membraneUsed?: number
+      sinusLift?: string | null
+      placementDate?: string
+      healingPeriodMonths?: number
+      targetLoadingDate?: string | null
+      healingAbutmentDate?: string | null
+      healingAbutmentSize?: string | null
+      finalLoadingDate?: string | null
+      prostheticType?: string | null
+      status?: string
+      notes?: string | null
+    }
+  | { op: 'deleteDentalImplant'; id: number }
+
+  // Dental Stock & Inventory
+  | { op: 'listInventoryItems'; category?: string; query?: string; lowStockOnly?: boolean; expiringSoon?: boolean }
+  | { op: 'getInventoryItem'; id: number }
+  | {
+      op: 'createInventoryItem'
+      name: string
+      category: string
+      specification?: string | null
+      quantity: number
+      unit: string
+      minThreshold: number
+      costPerUnit: number
+      distributorId?: number | null
+      expiryDate?: string | null
+      batchNumber?: string | null
+      location?: string | null
+      notes?: string | null
+    }
+  | {
+      op: 'updateInventoryItem'
+      id: number
+      name?: string
+      category?: string
+      specification?: string | null
+      quantity?: number
+      unit?: string
+      minThreshold?: number
+      costPerUnit?: number
+      distributorId?: number | null
+      expiryDate?: string | null
+      batchNumber?: string | null
+      location?: string | null
+      notes?: string | null
+    }
+  | { op: 'adjustInventoryQuantity'; id: number; delta: number }
+  | { op: 'deleteInventoryItem'; id: number }
+  | { op: 'getInventoryStats' }
+
+  // Treatment Catalog
+  | { op: 'listTreatmentCatalog'; category?: string; query?: string; activeOnly?: boolean }
+  | {
+      op: 'createTreatmentCatalogItem'
+      category: string
+      code?: string | null
+      nameAr: string
+      nameEn: string
+      defaultCost: number
+      description?: string | null
+      durationMinutes?: number
+      isActive?: number
+    }
+  | {
+      op: 'updateTreatmentCatalogItem'
+      id: number
+      category?: string
+      code?: string | null
+      nameAr?: string
+      nameEn?: string
+      defaultCost?: number
+      description?: string | null
+      durationMinutes?: number
+      isActive?: number
+    }
+  | { op: 'deleteTreatmentCatalogItem'; id: number }
 
 export type DentAssistApi = {
   /** True only in packaged Electron preload (not browser dev mock). */
@@ -203,8 +392,19 @@ export type DentAssistApi = {
   savePatientImage: (patientId: number, fileBuffer: ArrayBuffer, ext: string) => Promise<string>
   exportEncryptedBackup: (passphrase: string) => Promise<{ ok: true; filePath: string } | { ok: false }>
   importEncryptedBackup: (passphrase: string) => Promise<{ ok: true } | { ok: false }>
+  /** Returns encrypted backup payload string for cloud sync */
+  getEncryptedBackupString?: (passphrase: string) => Promise<string>
+  /** Restores encrypted backup payload string from cloud sync */
+  applyEncryptedBackupString?: (encrypted: string, passphrase: string) => Promise<{ ok: true }>
   /** Web/PWA: restore from a File already chosen in the UI (reliable on mobile). */
   importEncryptedBackupFromFile?: (file: File, passphrase: string) => Promise<{ ok: true }>
+  /** Google Drive desktop folder sync */
+  selectFolderDialog?: () => Promise<string | null>
+  detectGoogleDriveFolder?: () => Promise<string | null>
+  saveBackupToFolder?: (folderPath: string, passphrase: string) => Promise<{ ok: true; fileName: string; filePath: string; size: number; createdTime: string }>
+  listBackupsInFolder?: (folderPath: string) => Promise<Array<{ name: string; path: string; size: number; createdTime: string; modifiedTime?: string }>>
+  restoreBackupFromFilePath?: (filePath: string, passphrase: string) => Promise<{ ok: true }>
+  openFolderInExplorer?: (folderPath: string) => Promise<boolean>
   /** Save UTF-8 text (e.g. CSV) via system dialog; returns ok:false if user cancels. */
   saveTextFile?: (defaultFileName: string, content: string) => Promise<{ ok: true; filePath: string } | { ok: false }>
   windowMinimize?: () => Promise<void>

@@ -27,7 +27,7 @@ export function NativeAppChrome({ children }: Props) {
   }, [isWebBuild])
 
   return (
-    <div className="flex h-full min-h-0 flex-col select-none [&_input]:select-text [&_textarea]:select-text [&_select]:select-text [&_[contenteditable='true']]:select-text">
+    <div className="flex h-full w-full min-h-0 flex-col overflow-hidden select-none [&_input]:select-text [&_textarea]:select-text [&_select]:select-text [&_[contenteditable='true']]:select-text">
       {children}
     </div>
   )

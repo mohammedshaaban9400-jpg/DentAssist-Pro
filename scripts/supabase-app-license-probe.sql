@@ -1,5 +1,5 @@
 -- DentAssist Pro: server-side trial anchor + clock probe (run in Supabase SQL Editor).
--- Trial length: 2.5 months (2 months + 15 days) — must match src/lib/trialDuration.ts
+-- Trial length: 7 days — must match src/lib/trialDuration.ts
 -- After applying, the app calls RPC `app_license_probe` with the anon key.
 
 create table if not exists public.device_trials (
@@ -54,7 +54,7 @@ begin
     values (v_id, v_start);
   end if;
 
-  v_end := v_start + interval '2 months 15 days';
+  v_end := v_start + interval '7 days';
   v_valid := v_now < v_end;
 
   return jsonb_build_object(

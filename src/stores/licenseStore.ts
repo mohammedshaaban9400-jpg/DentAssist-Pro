@@ -42,7 +42,7 @@ function publicStatus(
   return 'locked'
 }
 
-/** Prefer the longer trial end (local 2.5 months vs server) so extensions apply everywhere. */
+/** Prefer the longer trial end (local 7 days vs server) so extensions apply everywhere. */
 function effectiveTrialEndsAt(firstLaunchIso: string | null, serverEndsMs?: number): Date | null {
   const local = firstLaunchIso ? computeTrialEndsAt(new Date(firstLaunchIso)) : null
   if (serverEndsMs == null || !Number.isFinite(serverEndsMs)) return local
@@ -101,7 +101,7 @@ export const useLicenseStore = create<LicenseState>((set) => ({
     if (supabase && machineId.trim()) {
       const probe = await fetchLicenseProbe(machineId, first)
       if (!probe.ok) {
-        // Server probe failed — keep trial if local window (2.5 months) is still valid.
+        // Server probe failed — keep trial if local window (7 days) is still valid.
         if (licenseStatus === 'trial') {
           if (trialEndsAt && isAfter(trialEndsAt, new Date())) {
             licenseGate = null

@@ -4,11 +4,13 @@ import { HashRouter as BrowserRouter } from 'react-router-dom'
 import { I18nextProvider } from 'react-i18next'
 import i18n from '@/i18n'
 import App from '@/App.tsx'
+import { useThemeStore } from '@/stores/themeStore'
 import '@/index.css'
 
 const isWebTarget = import.meta.env.VITE_TARGET === 'web'
 
 async function bootstrap(): Promise<void> {
+  useThemeStore.getState().initTheme()
   if (isWebTarget) {
     const { installWebBridge } = await import('@/platform/web/installWebBridge')
     await installWebBridge()

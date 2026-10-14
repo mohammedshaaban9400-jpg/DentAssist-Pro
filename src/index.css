@@ -6,12 +6,35 @@
   --shadow-dent-card: 0 2px 10px -3px rgba(15, 23, 42, 0.08);
 }
 
+:root {
+  --app-font-family: 'Tajawal', ui-sans-serif, system-ui, sans-serif;
+  --color-primary: #0d9488;
+  --color-primary-hover: #0f766e;
+  --color-primary-light: #ccfbf1;
+  --color-primary-glow: rgba(13, 148, 136, 0.25);
+  --sidebar-from: #0d1424;
+  --sidebar-to: #111827;
+  --sidebar-border: rgba(255, 255, 255, 0.05);
+}
+
 @layer base {
   html,
-  body,
+  body {
+    height: 100%;
+    height: 100dvh;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
   #root {
     height: 100%;
-    overflow-x: hidden;
+    height: 100dvh;
+    width: 100%;
+    overflow: hidden;
   }
 
   html {
@@ -19,18 +42,17 @@
   }
 
   body {
-    margin: 0;
     background: #f0f4f8;
     @apply text-slate-900 text-sm leading-relaxed;
-    overflow-x: hidden;
+    font-family: var(--app-font-family), 'Tajawal', ui-sans-serif, system-ui, sans-serif;
   }
 
   html[dir='rtl'] body {
-    font-family: var(--font-arabic);
+    font-family: var(--app-font-family), var(--font-arabic);
   }
 
   html[dir='ltr'] body {
-    font-family: var(--font-sans);
+    font-family: var(--app-font-family), var(--font-sans);
   }
 
   h1 {
@@ -99,6 +121,40 @@
   background-color: rgba(20, 184, 166, 0.8);
 }
 
+/* Light sidebar adaptation */
+html[data-sidebar-light='true'] aside[data-tour='sidebar'],
+html[data-sidebar-light='true'] header.md\:hidden {
+  border-color: var(--sidebar-border, #e2e8f0) !important;
+}
+
+html[data-sidebar-light='true'] aside[data-tour='sidebar'] p.text-white,
+html[data-sidebar-light='true'] header.md\:hidden p.text-white {
+  color: #0f172a !important;
+}
+
+html[data-sidebar-light='true'] aside[data-tour='sidebar'] .text-slate-200 {
+  color: #334155 !important;
+}
+
+html[data-sidebar-light='true'] aside[data-tour='sidebar'] .text-slate-400,
+html[data-sidebar-light='true'] aside[data-tour='sidebar'] .text-slate-500,
+html[data-sidebar-light='true'] aside[data-tour='sidebar'] .text-slate-600 {
+  color: #64748b !important;
+}
+
+html[data-sidebar-light='true'] aside[data-tour='sidebar'] nav a {
+  color: #475569 !important;
+}
+
+html[data-sidebar-light='true'] aside[data-tour='sidebar'] nav a:hover {
+  background-color: rgba(15, 23, 42, 0.05) !important;
+}
+
+html[data-sidebar-light='true'] aside[data-tour='sidebar'] nav a.bg-white\/10 {
+  background-color: var(--color-primary-light, #ccfbf1) !important;
+  color: var(--color-primary, #0d9488) !important;
+}
+
 /* Design tokens as component shortcuts */
 @layer components {
   .da-card {
@@ -110,7 +166,12 @@
   }
 
   .da-btn-primary {
-    @apply inline-flex cursor-pointer items-center justify-center rounded-xl bg-teal-600 px-6 py-2.5 text-sm font-medium text-white shadow-md transition-all duration-200 hover:bg-teal-700 hover:shadow-lg active:scale-95 disabled:pointer-events-none disabled:opacity-50;
+    @apply inline-flex cursor-pointer items-center justify-center rounded-xl px-6 py-2.5 text-sm font-medium text-white shadow-md transition-all duration-200 hover:shadow-lg active:scale-95 disabled:pointer-events-none disabled:opacity-50;
+    background-color: var(--color-primary, #0d9488) !important;
+  }
+
+  .da-btn-primary:hover {
+    background-color: var(--color-primary-hover, #0f766e) !important;
   }
 
   .da-btn-secondary {
@@ -118,11 +179,21 @@
   }
 
   .da-btn-ghost {
-    @apply inline-flex cursor-pointer items-center justify-center rounded-lg px-4 py-2 text-sm font-medium text-teal-700 transition-colors hover:bg-teal-50;
+    @apply inline-flex cursor-pointer items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition-colors;
+    color: var(--color-primary, #0d9488) !important;
+  }
+
+  .da-btn-ghost:hover {
+    background-color: var(--color-primary-light, #ccfbf1) !important;
   }
 
   .da-input {
-    @apply block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-900 shadow-sm outline-none transition-all placeholder:text-slate-500 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/25;
+    @apply block w-full rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-900 shadow-sm outline-none transition-all placeholder:text-slate-500;
+  }
+
+  .da-input:focus {
+    border-color: var(--color-primary, #0d9488) !important;
+    box-shadow: 0 0 0 3px var(--color-primary-glow, rgba(13, 148, 136, 0.25)) !important;
   }
 
   .da-table-wrap {
@@ -158,27 +229,27 @@
   }
 
   .list-page-header {
-    @apply flex flex-col gap-3 border-b border-slate-200 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6 sm:py-4;
+    @apply flex flex-col gap-3 border-b border-slate-100/80 bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6 sm:py-4.5;
   }
 
   .list-page-header h1 {
-    @apply flex min-w-0 items-center gap-2 text-lg font-bold text-slate-800 sm:text-xl;
+    @apply flex min-w-0 items-center gap-2.5 text-lg font-bold text-slate-900 sm:text-xl tracking-tight;
   }
 
   .list-page-toolbar {
-    @apply flex flex-col gap-3 border-b border-slate-100 bg-slate-50/50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6;
+    @apply flex flex-col gap-3 border-b border-slate-100/80 bg-slate-50/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6;
   }
 
   .list-page-band {
-    @apply border-b border-slate-100 px-3 py-3 sm:px-6;
+    @apply border-b border-slate-100/80 px-4 py-3 sm:px-6;
   }
 
   .list-page-kpi-grid {
-    @apply grid grid-cols-3 gap-2 border-b border-slate-100 bg-slate-50/30 p-3 sm:gap-4 sm:p-6;
+    @apply grid grid-cols-1 sm:grid-cols-3 gap-3 border-b border-slate-100/80 bg-slate-50/30 p-4 sm:gap-4 sm:p-6;
   }
 
   .list-page-kpi-grid .rounded-2xl {
-    @apply p-3 sm:p-5;
+    @apply p-4 sm:p-5 rounded-2xl border border-slate-100/90 bg-white shadow-xs transition-all duration-200 hover:shadow-md;
   }
 
   .list-page-kpi-grid p.text-2xl {
@@ -198,7 +269,17 @@
   }
 
   .mobile-card-list {
-    @apply flex flex-col gap-2 p-3 pb-2 md:hidden;
+    @apply flex flex-col gap-2 p-3 pb-8 md:hidden;
+  }
+
+  .app-main-content {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 7rem) !important;
+  }
+
+  @media (min-width: 768px) {
+    .app-main-content {
+      padding-bottom: 2.5rem !important;
+    }
   }
 
   .desktop-table-pane {
@@ -293,5 +374,18 @@
 @media (prefers-reduced-motion: reduce) {
   .da-splash-pulse {
     animation: none;
+  }
+}
+
+/* Ensure mobile main scroll container always leaves space above the fixed bottom navigation dock */
+@media (max-width: 767.98px) {
+  .app-main-content {
+    padding-bottom: max(7.5rem, calc(6rem + env(safe-area-inset-bottom, 0px))) !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .app-main-content {
+    padding-bottom: 2rem !important;
   }
 }

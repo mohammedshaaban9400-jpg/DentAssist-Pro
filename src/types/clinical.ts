@@ -168,3 +168,174 @@ export type DashboardStats = {
   pendingDebt: number
   topProcedures: { description: string; count: number }[]
 }
+
+/** Orthodontic Angle malocclusion classifications */
+export type OrthodonticClassification =
+  | 'class_1'
+  | 'class_2_div_1'
+  | 'class_2_div_2'
+  | 'class_3'
+  | 'open_bite'
+  | 'crossbite'
+  | 'other'
+
+/** Orthodontic Appliance Types */
+export type OrthodonticApplianceType =
+  | 'metal'
+  | 'ceramic'
+  | 'self_ligating'
+  | 'clear_aligner'
+  | 'lingual'
+  | 'functional'
+  | 'retainer_only'
+
+export type OrthodonticCaseStatus = 'active' | 'retention' | 'completed' | 'suspended'
+
+export type OrthodonticCase = {
+  id: number
+  patient_id: number
+  case_number: string
+  start_date: string
+  estimated_duration_months: number
+  status: OrthodonticCaseStatus
+  classification: OrthodonticClassification
+  appliance_type: OrthodonticApplianceType
+  arch_type: 'upper' | 'lower' | 'both'
+  extraction_plan: string | null
+  chief_complaint: string | null
+  diagnosis_notes: string | null
+  total_cost: number
+  down_payment: number
+  monthly_installment: number
+  retainer_type: string | null
+  created_at: string
+  updated_at: string
+  // Virtual / joined fields
+  patient_first_name?: string
+  patient_last_name?: string
+  patient_phone?: string | null
+  visits_count?: number
+  last_visit_date?: string | null
+  total_paid?: number
+  remaining_balance?: number
+}
+
+export type OrthodonticVisit = {
+  id: number
+  case_id: number
+  visit_number: number
+  visit_date: string
+  upper_wire: string | null
+  lower_wire: string | null
+  elastic_prescription: string | null
+  actions_json: string | null
+  broken_brackets_count: number
+  oral_hygiene_rating: number
+  pain_level: number
+  amount_paid: number
+  notes: string | null
+  next_appointment_date: string | null
+  created_at: string
+}
+
+export type OrthodonticStats = {
+  activeCases: number
+  retentionCases: number
+  completedCases: number
+  suspendedCases: number
+  upcomingVisitsCount: number
+  totalRevenue: number
+  totalDebt: number
+}
+
+/** Dental Implantology Types */
+export type ImplantStatus = 'planned' | 'placed' | 'healing' | 'uncovered' | 'restored' | 'failed'
+
+export type DentalImplant = {
+  id: number
+  patient_id: number
+  tooth_number: number
+  brand: string
+  model: string | null
+  diameter_mm: number
+  length_mm: number
+  lot_number: string | null
+  serial_number: string | null
+  insertion_torque_ncm: number | null
+  isq_value: number | null
+  bone_graft_type: string | null
+  membrane_used: number
+  sinus_lift: string | null
+  placement_date: string
+  healing_period_months: number
+  target_loading_date: string | null
+  healing_abutment_date: string | null
+  healing_abutment_size: string | null
+  final_loading_date: string | null
+  prosthetic_type: string | null
+  status: ImplantStatus
+  notes: string | null
+  created_at: string
+  updated_at: string
+  // Virtual / joined fields
+  patient_name?: string
+  patient_phone?: string | null
+}
+
+/** Dental Stock & Inventory Types */
+export type InventoryCategory =
+  | 'anesthesia'
+  | 'composite'
+  | 'endodontics'
+  | 'surgery_implants'
+  | 'impression'
+  | 'sterilization'
+  | 'disposables'
+  | 'other'
+
+export type InventoryItem = {
+  id: number
+  name: string
+  category: InventoryCategory
+  specification: string | null
+  quantity: number
+  unit: string
+  min_threshold: number
+  cost_per_unit: number
+  distributor_id: number | null
+  expiry_date: string | null
+  batch_number: string | null
+  location: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+  // Virtual / joined fields
+  distributor_name?: string
+  distributor_company?: string
+  distributor_phone?: string
+  is_low_stock?: boolean
+  is_expired?: boolean
+  is_near_expiry?: boolean
+}
+
+export type InventoryStats = {
+  totalItems: number
+  lowStockCount: number
+  expiringCount: number
+  totalEstimatedValue: number
+}
+
+/** Treatment Catalog / Fee Schedule Types */
+export type TreatmentCatalogItem = {
+  id: number
+  category: string
+  code: string | null
+  name_ar: string
+  name_en: string
+  default_cost: number
+  description: string | null
+  duration_minutes: number
+  is_active: number
+  created_at: string
+}
+

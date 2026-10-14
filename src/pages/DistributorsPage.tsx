@@ -1,12 +1,28 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Search, PackageOpen, Phone, MapPin, Package, Trash2, Pencil, Wallet, Coins } from 'lucide-react'
+import {
+  Coins,
+  MapPin,
+  Package,
+  PackageOpen,
+  Pencil,
+  Phone,
+  Plus,
+  Search,
+  Trash2,
+  Wallet,
+  X,
+} from 'lucide-react'
 import { useSettingsStore } from '@/stores/settingsStore'
 import {
-  DesktopTableScroll,
+  DesktopTablePane,
   ListPageHeader,
   ListPageLayout,
   ListPageToolbar,
+  MobileCard,
+  MobileCardActions,
+  MobileCardList,
+  MobileEmptyState,
 } from '@/components/layout/ListPageLayout'
 import {
   listDistributors,
@@ -16,16 +32,28 @@ import {
   type DistributorRow,
 } from '@/services/dbService'
 
+function formatNumber(n: number): string {
+  if (isNaN(n) || !isFinite(n)) return '0'
+  return new Intl.NumberFormat('en-US').format(Math.round(n))
+}
+
+function getInitials(name?: string): string {
+  const parts = (name || '').trim().split(' ')
+  const f = parts[0]?.charAt(0) || ''
+  const l = parts[1]?.charAt(0) || ''
+  return `${f}${l}`.toUpperCase() || '؟'
+}
+
 export function DistributorsPage() {
   const { i18n } = useTranslation()
   const isAr = i18n.language === 'ar'
-  const { currency, exchangeRate } = useSettingsStore()
+  const { currency } = useSettingsStore()
 
   const [distributors, setDistributors] = useState<DistributorRow[]>([])
   const [q, setQ] = useState('')
   const [modal, setModal] = useState<boolean>(false)
   const [loading, setLoading] = useState(true)
-  
+
   // For add/edit
   const [editId, setEditId] = useState<number | null>(null)
   const [formData, setFormData] = useState({
@@ -35,8 +63,18 @@ export function DistributorsPage() {
     address: '',
     items: '',
     paymentAmount: '',
-    remainingAmount: ''
+    remainingAmount: '',
   })
+
+  const currencySymbol = useMemo(() => {
+    if (currency === 'SYP') return isAr ? 'ل.س' : 'SYP'
+    if (currency === 'IQD') return isAr ? 'د.ع' : 'IQD'
+    if (currency === 'USD') return '$'
+    if (currency === 'EUR') return '€'
+    if (currency === 'SAR') return isAr ? 'ر.س' : 'SAR'
+    if (currency === 'AED') return isAr ? 'د.إ' : 'AED'
+    return currency || ''
+  }, [currency, isAr])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -58,7 +96,13 @@ export function DistributorsPage() {
   const openAddModal = () => {
     setEditId(null)
     setFormData({
-      name: '', company: '', phone: '', address: '', items: '', paymentAmount: '', remainingAmount: ''
+      name: '',
+      company: '',
+      phone: '',
+      address: '',
+      items: '',
+      paymentAmount: '',
+      remainingAmount: '',
     })
     setModal(true)
   }
@@ -72,7 +116,7 @@ export function DistributorsPage() {
       address: d.address || '',
       items: d.items || '',
       paymentAmount: d.payment_amount.toString(),
-      remainingAmount: d.remaining_amount.toString()
+      remainingAmount: d.remaining_amount.toString(),
     })
     setModal(true)
   }
@@ -86,7 +130,7 @@ export function DistributorsPage() {
       address: formData.address.trim(),
       items: formData.items.trim(),
       paymentAmount: parseFloat(formData.paymentAmount) || 0,
-      remainingAmount: parseFloat(formData.remainingAmount) || 0
+      remainingAmount: parseFloat(formData.remainingAmount) || 0,
     }
 
     try {
@@ -103,7 +147,13 @@ export function DistributorsPage() {
   }
 
   const handleDelete = async (id: number) => {
-    if (window.confirm(isAr ? 'هل أنت متأكد من حذف الموزع؟' : 'Are you sure you want to delete this distributor?')) {
+    if (
+      window.confirm(
+        isAr
+          ? 'هل أنت متأكد من حذف الموزع؟'
+          : 'Are you sure you want to delete this distributor?',
+      )
+    ) {
       try {
         await deleteDistributor(id)
         loadData()
@@ -113,240 +163,482 @@ export function DistributorsPage() {
     }
   }
 
-  const formatMoney = (amount: number) => {
-    if (currency === 'SYP' || currency === 'IQD') return amount.toLocaleString()
-    return (amount / exchangeRate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  }
+  const totalPaid = useMemo(
+    () => distributors.reduce((sum, d) => sum + (d.payment_amount || 0), 0),
+    [distributors],
+  )
+  const totalRemaining = useMemo(
+    () => distributors.reduce((sum, d) => sum + (d.remaining_amount || 0), 0),
+    [distributors],
+  )
 
   return (
     <ListPageLayout>
-      {/* Header */}
+      {/* ─── Header ─── */}
       <ListPageHeader>
-        <h1>
-          <PackageOpen className="size-6 text-teal-600" />
-          {isAr ? 'الموزعين' : 'Distributors'}
-        </h1>
+        <div className="flex items-center gap-3">
+          <div
+            className="flex size-11 items-center justify-center rounded-2xl text-white shadow-sm"
+            style={{
+              background: 'linear-gradient(135deg, #0d9488, #2563eb)',
+              boxShadow: '0 4px 12px rgba(13, 148, 136, 0.25)',
+            }}
+          >
+            <PackageOpen className="size-5.5" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+              {isAr ? 'مستودعات ومندوبي المواد السنية' : 'Dental Suppliers & Distributors'}
+            </h1>
+            <p className="text-xs text-slate-500 font-medium">
+              {isAr
+                ? `${distributors.length} مستودع ومورد مسجل لتأمين المستهلكات والأدوات الطبية`
+                : `${distributors.length} registered medical suppliers and supply debt accounts`}
+            </p>
+          </div>
+        </div>
+
         <button
           type="button"
           onClick={openAddModal}
-          className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg active:scale-95"
-          style={{ background: 'linear-gradient(135deg, #0d9488, #0891b2)' }}
+          className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl px-4.5 py-2 text-xs font-bold text-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
+          style={{
+            background: 'linear-gradient(135deg, var(--color-primary, #0d9488), #0f766e)',
+            boxShadow: '0 2px 10px var(--color-primary-glow, rgba(13, 148, 136, 0.3))',
+          }}
         >
           <Plus className="size-4" />
-          {isAr ? 'إضافة موزع' : 'Add Distributor'}
+          <span>{isAr ? 'إضافة موزع جديد' : 'Add Distributor'}</span>
         </button>
       </ListPageHeader>
 
-      <ListPageToolbar>
-        <div className="flex items-center gap-2 text-sm text-slate-500 font-semibold">
-          <Package className="size-4" />
-          {distributors.length} {isAr ? 'موزع مسجل' : 'Registered Distributors'}
+      {/* ─── 2 Financial Summary Cards ─── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-b border-slate-100 bg-slate-50/40 p-4 sm:gap-4 sm:p-5">
+        <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="flex size-11 items-center justify-center rounded-2xl bg-teal-50 text-teal-600 shadow-2xs">
+              <Wallet className="size-5.5" />
+            </div>
+            <div>
+              <p className="text-lg sm:text-xl font-extrabold text-teal-700 tabular-nums">
+                {formatNumber(totalPaid)}{' '}
+                <span className="text-xs font-normal text-slate-500">{currencySymbol}</span>
+              </p>
+              <p className="text-[11px] font-bold text-slate-500">
+                {isAr ? 'إجمالي الدفعات المسددة للموردين' : 'Total Supplier Payments'}
+              </p>
+            </div>
+          </div>
         </div>
+
+        <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="flex size-11 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 shadow-2xs">
+              <Coins className="size-5.5" />
+            </div>
+            <div>
+              <p className="text-lg sm:text-xl font-extrabold text-rose-700 tabular-nums">
+                {formatNumber(totalRemaining)}{' '}
+                <span className="text-xs font-normal text-slate-500">{currencySymbol}</span>
+              </p>
+              <p className="text-[11px] font-bold text-slate-500">
+                {isAr ? 'إجمالي المبالغ المستحقة المتبقية' : 'Outstanding Supply Debts'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── Search Toolbar ─── */}
+      <ListPageToolbar>
         <div className="relative w-full max-w-md">
-          <Search className="absolute top-1/2 size-4 -translate-y-1/2 text-slate-400 start-3" />
+          <Search className="pointer-events-none absolute top-1/2 size-4 -translate-y-1/2 text-slate-400 start-3.5" />
           <input
             type="text"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder={isAr ? 'بحث (الاسم / الشركة / المواد)...' : 'Search (Name / Company / Items)...'}
-            className="w-full rounded-lg border border-slate-200 bg-white py-2 ps-9 pe-3 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+            placeholder={isAr ? 'بحث (الاسم / الشركة / المواد)...' : 'Search by name, company, items...'}
+            className="w-full rounded-2xl border border-slate-200/80 bg-white py-2.5 ps-10 pe-9 text-xs font-medium text-slate-800 shadow-2xs outline-none transition-all placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
           />
+          {q && (
+            <button
+              type="button"
+              onClick={() => setQ('')}
+              className="absolute top-1/2 -translate-y-1/2 end-3 text-slate-400 hover:text-slate-600"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
         </div>
       </ListPageToolbar>
 
-      {/* Table Section */}
-      <DesktopTableScroll>
-        <table className="w-full text-sm text-slate-600 min-w-[1000px]">
-          <thead className="sticky top-0 z-10 border-b border-slate-100 bg-white shadow-[0_1px_0_0_#f1f5f9]">
+      {/* ─── Mobile Cards ─── */}
+      <MobileCardList>
+        {loading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <MobileCard key={i}>
+              <div className="h-4 w-3/4 animate-pulse rounded bg-slate-100" />
+            </MobileCard>
+          ))
+        ) : distributors.length === 0 ? (
+          <MobileEmptyState icon={PackageOpen}>
+            <p className="text-sm font-semibold text-slate-700">
+              {isAr ? 'لا يوجد موزعين مسجلين' : 'No distributors found'}
+            </p>
+          </MobileEmptyState>
+        ) : (
+          distributors.map((d) => {
+            const initials = getInitials(d.name)
+            return (
+              <MobileCard key={d.id}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div
+                      className="flex size-10 shrink-0 items-center justify-center rounded-xl text-xs font-bold text-white shadow-2xs"
+                      style={{ background: 'linear-gradient(135deg, #0d9488, #2563eb)' }}
+                    >
+                      {initials}
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-900">{d.name}</p>
+                      <span className="rounded-md bg-teal-50 px-2 py-0.2 text-[10px] font-bold text-teal-800 border border-teal-200/60">
+                        {d.company}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-2.5 space-y-1 text-xs text-slate-600">
+                  {d.phone && (
+                    <div className="flex items-center gap-1.5 font-mono">
+                      <Phone className="size-3 text-slate-400" />
+                      <span>{d.phone}</span>
+                    </div>
+                  )}
+                  {d.items && (
+                    <div className="flex items-center gap-1.5 text-slate-500">
+                      <Package className="size-3 text-slate-400" />
+                      <span className="truncate">{d.items}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-xs">
+                  <div>
+                    <span className="text-slate-400">{isAr ? 'مسدد:' : 'Paid:'} </span>
+                    <span className="font-bold text-teal-700">
+                      {formatNumber(d.payment_amount)} {currencySymbol}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">{isAr ? 'متبقي:' : 'Left:'} </span>
+                    <span className="font-bold text-rose-600">
+                      {formatNumber(d.remaining_amount)} {currencySymbol}
+                    </span>
+                  </div>
+                </div>
+
+                <MobileCardActions>
+                  <button
+                    type="button"
+                    onClick={() => openEditModal(d)}
+                    className="flex size-8 items-center justify-center rounded-xl bg-slate-100 text-slate-600 hover:bg-teal-50 hover:text-teal-700"
+                  >
+                    <Pencil className="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(d.id)}
+                    className="flex size-8 items-center justify-center rounded-xl bg-slate-100 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </MobileCardActions>
+              </MobileCard>
+            )
+          })
+        )}
+      </MobileCardList>
+
+      {/* ─── Desktop Table View ─── */}
+      <DesktopTablePane>
+        <table className="min-w-[900px] w-full text-xs text-slate-600">
+          <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50/90 text-slate-600 backdrop-blur-xs">
             <tr>
-              <th className="px-6 py-3 text-start font-semibold text-slate-500 border-e border-slate-100">{isAr ? 'المندوب / الشركة' : 'Agent / Company'}</th>
-              <th className="px-6 py-3 text-start font-semibold text-slate-500 border-e border-slate-100">{isAr ? 'بيانات الاتصال' : 'Contact Info'}</th>
-              <th className="px-6 py-3 text-start font-semibold text-slate-500 border-e border-slate-100">{isAr ? 'المواد والمستهلكات' : 'Supplies & Items'}</th>
-              <th className="px-6 py-3 text-start font-semibold text-slate-500 border-e border-slate-100">{isAr ? 'سعر الدفعة' : 'Payment Amount'}</th>
-              <th className="px-6 py-3 text-start font-semibold text-slate-500 border-e border-slate-100">{isAr ? 'المبلغ المتبقي' : 'Remaining'}</th>
-              <th className="px-6 py-3 text-center font-semibold text-slate-500">{isAr ? 'إجراءات' : 'Actions'}</th>
+              <th className="px-6 py-3.5 text-start font-bold uppercase tracking-wider text-slate-500">
+                {isAr ? 'المندوب / المستودع' : 'Agent / Company'}
+              </th>
+              <th className="px-6 py-3.5 text-start font-bold uppercase tracking-wider text-slate-500">
+                {isAr ? 'بيانات الاتصال' : 'Contact Info'}
+              </th>
+              <th className="px-6 py-3.5 text-start font-bold uppercase tracking-wider text-slate-500">
+                {isAr ? 'المواد والمستهلكات' : 'Supplies & Items'}
+              </th>
+              <th className="px-6 py-3.5 text-start font-bold uppercase tracking-wider text-slate-500">
+                {isAr ? 'الدفعات المسددة' : 'Paid Amount'}
+              </th>
+              <th className="px-6 py-3.5 text-start font-bold uppercase tracking-wider text-slate-500">
+                {isAr ? 'المبلغ المتبقي' : 'Remaining'}
+              </th>
+              <th className="px-6 py-3.5 text-center font-bold uppercase tracking-wider text-slate-500">
+                {isAr ? 'إجراءات' : 'Actions'}
+              </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100/90 bg-white">
             {loading ? (
-               <tr>
-                 <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
-                   {isAr ? 'جاري التحميل...' : 'Loading...'}
-                 </td>
-               </tr>
+              Array.from({ length: 4 }).map((_, i) => (
+                <tr key={i}>
+                  <td className="px-6 py-4">
+                    <div className="h-4 w-32 animate-pulse rounded bg-slate-100" />
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="h-4 w-28 animate-pulse rounded bg-slate-100" />
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="h-4 w-36 animate-pulse rounded bg-slate-100" />
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="h-4 w-20 animate-pulse rounded bg-slate-100" />
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="h-4 w-20 animate-pulse rounded bg-slate-100" />
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <div className="h-6 w-14 mx-auto animate-pulse rounded bg-slate-100" />
+                  </td>
+                </tr>
+              ))
             ) : distributors.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                <td colSpan={6} className="px-6 py-16 text-center text-slate-400">
                   <div className="flex flex-col items-center justify-center gap-3">
-                    <PackageOpen className="size-10 text-slate-300" />
-                    {isAr ? 'لا يوجد موزعين' : 'No distributors found'}
+                    <div className="flex size-14 items-center justify-center rounded-2xl bg-slate-50 text-slate-300 ring-1 ring-slate-100">
+                      <PackageOpen className="size-7" />
+                    </div>
+                    <p className="text-sm font-bold text-slate-700">
+                      {isAr ? 'لا يوجد موردين مسجلين' : 'No distributors found'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={openAddModal}
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-teal-50 px-4 py-2 text-xs font-bold text-teal-800 hover:bg-teal-100 shadow-2xs"
+                    >
+                      <Plus className="size-4" />
+                      {isAr ? 'إضافة مورد جديد الآن' : 'Add Distributor'}
+                    </button>
                   </div>
                 </td>
               </tr>
             ) : (
-              distributors.map(d => (
-                <tr key={d.id} className="transition-colors hover:bg-slate-50/50 group">
-                  <td className="px-6 py-4">
-                    <div className="font-bold text-slate-900">{d.name}</div>
-                    <div className="text-xs text-teal-700 font-semibold mt-0.5">{d.company}</div>
-                  </td>
-                  <td className="px-6 py-4 font-mono text-slate-600">
-                    <div className="flex flex-col gap-1 text-xs">
-                      <div className="flex items-center gap-1.5">
-                        <Phone className="size-3.5 text-slate-400" />
-                        {d.phone || '—'}
+              distributors.map((d) => {
+                const initials = getInitials(d.name)
+                return (
+                  <tr
+                    key={d.id}
+                    className="group transition-colors duration-150 hover:bg-teal-50/20"
+                  >
+                    <td className="px-6 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="flex size-8 shrink-0 items-center justify-center rounded-xl text-xs font-bold text-white shadow-2xs"
+                          style={{ background: 'linear-gradient(135deg, #0d9488, #2563eb)' }}
+                        >
+                          {initials}
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-900 group-hover:text-teal-900 transition-colors">
+                            {d.name}
+                          </p>
+                          <span className="rounded-md bg-teal-50 px-1.5 py-0.2 text-[10px] font-bold text-teal-800 border border-teal-200/60">
+                            {d.company}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5 text-slate-500">
-                        <MapPin className="size-3.5 text-slate-400" />
-                        <span className="truncate max-w-[150px]" title={d.address}>{d.address || '—'}</span>
+                    </td>
+
+                    <td className="px-6 py-3.5 font-mono text-slate-600">
+                      <div className="flex flex-col gap-0.5 text-xs">
+                        <div className="flex items-center gap-1.5 text-slate-700">
+                          <Phone className="size-3 text-slate-400" />
+                          <span>{d.phone || '—'}</span>
+                        </div>
+                        {d.address && (
+                          <div className="flex items-center gap-1 text-[11px] text-slate-400 font-sans">
+                            <MapPin className="size-2.5" />
+                            <span className="truncate max-w-[160px]">{d.address}</span>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-slate-600">
-                    <div className="flex items-start gap-1.5">
-                      <Package className="size-3.5 text-slate-400 mt-0.5 shrink-0" />
-                      <span className="truncate max-w-[200px] leading-relaxed" title={d.items}>{d.items || '—'}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 font-bold tabular-nums text-teal-600">
-                    {formatMoney(d.payment_amount)} <span className="text-xs text-slate-400 font-medium">{currency}</span>
-                  </td>
-                  <td className="px-6 py-4 font-bold tabular-nums text-rose-600">
-                    {formatMoney(d.remaining_amount)} <span className="text-xs text-slate-400 font-medium">{currency}</span>
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <button
-                        onClick={() => openEditModal(d)}
-                        className="flex size-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition-colors hover:bg-teal-100 hover:text-teal-700"
-                        title={isAr ? 'تعديل' : 'Edit'}
-                      >
-                        <Pencil className="size-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(d.id)}
-                        className="flex size-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition-colors hover:bg-rose-100 hover:text-rose-600"
-                        title={isAr ? 'حذف' : 'Delete'}
-                      >
-                        <Trash2 className="size-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+                    </td>
+
+                    <td className="px-6 py-3.5 text-slate-700">
+                      <div className="flex items-center gap-1.5 max-w-[220px]">
+                        <Package className="size-3.5 text-teal-600 shrink-0" />
+                        <span className="truncate font-medium">{d.items || '—'}</span>
+                      </div>
+                    </td>
+
+                    <td className="px-6 py-3.5 font-extrabold tabular-nums text-teal-700 text-sm">
+                      {formatNumber(d.payment_amount)}{' '}
+                      <span className="text-xs font-normal text-slate-500">{currencySymbol}</span>
+                    </td>
+
+                    <td className="px-6 py-3.5 font-extrabold tabular-nums text-rose-600 text-sm">
+                      {formatNumber(d.remaining_amount)}{' '}
+                      <span className="text-xs font-normal text-slate-500">{currencySymbol}</span>
+                    </td>
+
+                    <td className="px-6 py-3.5 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => openEditModal(d)}
+                          className="flex size-7.5 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-2xs transition hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800"
+                          title={isAr ? 'تعديل' : 'Edit'}
+                        >
+                          <Pencil className="size-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(d.id)}
+                          className="flex size-7.5 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-400 shadow-2xs transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600"
+                          title={isAr ? 'حذف' : 'Delete'}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })
             )}
           </tbody>
         </table>
-      </DesktopTableScroll>
+      </DesktopTablePane>
 
+      {/* ─── Modal Dialog ─── */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl my-auto">
-            <div className="border-b border-slate-100 px-6 py-5">
-              <h2 className="text-lg font-bold text-slate-900">
-                {editId ? (isAr ? 'تعديل موزع' : 'Edit Distributor') : (isAr ? 'إضافة موزع جديد' : 'Add New Distributor')}
-              </h2>
+        <div className="da-mobile-sheet-overlay">
+          <div className="da-mobile-sheet max-w-xl rounded-2xl bg-white shadow-2xl border border-slate-200/80 overflow-hidden">
+            <div className="shrink-0 border-b border-slate-100 bg-slate-50/70 px-5 py-4 sm:px-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex size-9 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
+                    <PackageOpen className="size-4.5" />
+                  </div>
+                  <h2 className="text-base font-bold text-slate-900">
+                    {editId
+                      ? isAr
+                        ? 'تعديل بيانات الموزع'
+                        : 'Edit Distributor'
+                      : isAr
+                        ? 'إضافة مورد / مستودع جديد'
+                        : 'New Distributor'}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModal(false)}
+                  className="rounded-xl p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
             </div>
-            <div className="space-y-4 p-6 overflow-y-auto max-h-[70vh] thin-scrollbar">
+
+            <div className="da-mobile-sheet-body thin-scrollbar space-y-4 p-5 sm:p-6">
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
-                  {isAr ? 'اسم المندوب' : 'Agent Name'}
+                <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700">
+                  <span>{isAr ? 'اسم المندوب' : 'Agent Name'}</span>
                   <input
                     type="text"
                     value={formData.name}
-                    onChange={e => setFormData({...formData, name: e.target.value})}
-                    className="da-input bg-white"
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder={isAr ? 'مثال: سامر العلي...' : 'e.g. Samer Ali'}
+                    className="da-input text-xs"
                   />
                 </label>
-                <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
-                  {isAr ? 'اسم الشركة' : 'Company Name'}
+                <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700">
+                  <span>{isAr ? 'اسم المستودع / الشركة' : 'Company Name'}</span>
                   <input
                     type="text"
                     value={formData.company}
-                    onChange={e => setFormData({...formData, company: e.target.value})}
-                    className="da-input bg-white"
+                    onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                    placeholder={isAr ? 'مثال: شركة النقاء للمواد السنية...' : 'e.g. Pure Dental Supplies'}
+                    className="da-input text-xs"
                   />
                 </label>
-                <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
-                  {isAr ? 'رقم الهاتف' : 'Phone Number'}
+                <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700">
+                  <span>{isAr ? 'رقم الهاتف' : 'Phone'}</span>
                   <input
-                    type="text"
+                    type="tel"
                     value={formData.phone}
-                    onChange={e => setFormData({...formData, phone: e.target.value})}
-                    className="da-input bg-white tabular-nums ltr"
-                    dir="ltr"
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder="09..."
+                    className="da-input text-xs font-mono"
                   />
                 </label>
-                <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
-                  {isAr ? 'العنوان' : 'Address'}
+                <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700">
+                  <span>{isAr ? 'العنوان / المدينة' : 'Address'}</span>
                   <input
                     type="text"
                     value={formData.address}
-                    onChange={e => setFormData({...formData, address: e.target.value})}
-                    className="da-input bg-white"
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    placeholder={isAr ? 'دمشق — شارع بغداد' : 'City, Street'}
+                    className="da-input text-xs"
                   />
                 </label>
               </div>
 
-              <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
-                {isAr ? 'المواد والمستهلكات التي يوفرها' : 'Supplies & Items Provided'}
+              <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700">
+                <span>{isAr ? 'المواد والمستهلكات الموردة' : 'Supplies & Items'}</span>
                 <textarea
+                  rows={2}
                   value={formData.items}
-                  onChange={e => setFormData({...formData, items: e.target.value})}
-                  className="da-input bg-white min-h-[4rem] resize-none"
-                  placeholder={isAr ? 'مثال: قطن, مواد تخدير, زرعات...' : 'e.g. Cotton, Anesthetics, Implants...'}
+                  onChange={(e) => setFormData({ ...formData, items: e.target.value })}
+                  placeholder={
+                    isAr
+                      ? 'مثال: كمبوزيت، مبارد إندو، قفازات، بنج سني...'
+                      : 'e.g. Composite, endo files, gloves, anesthetic'
+                  }
+                  className="da-input text-xs resize-none"
                 />
               </label>
 
-              {/* Financials */}
-              <div className="grid gap-4 sm:grid-cols-2 border-t border-slate-100 pt-4 mt-2">
-                <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
-                  <span className="flex items-center gap-1.5">
-                    <Wallet className="size-4 text-teal-600" />
-                    {isAr ? 'سعر الدفعة (المدفوع)' : 'Payment Amount'}
-                  </span>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={formData.paymentAmount}
-                      onChange={e => setFormData({...formData, paymentAmount: e.target.value.replace(/[^0-9.]/g, '')})}
-                      className="da-input bg-white pe-12 tabular-nums"
-                      placeholder="0"
-                    />
-                    <div className="absolute inset-y-0 end-0 flex items-center pe-3 pointer-events-none">
-                      <span className="text-xs font-bold text-slate-400">{currency}</span>
-                    </div>
-                  </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700">
+                  <span>{isAr ? 'المبلغ المسدد (الدفعة)' : 'Paid Amount'}</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={formData.paymentAmount}
+                    onChange={(e) => setFormData({ ...formData, paymentAmount: e.target.value })}
+                    placeholder="0"
+                    className="da-input text-xs font-bold tabular-nums"
+                  />
                 </label>
-
-                <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
-                  <span className="flex items-center gap-1.5">
-                    <Coins className="size-4 text-rose-500" />
-                    {isAr ? 'المبلغ المتبقي (الذمة)' : 'Remaining Amount'}
-                  </span>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={formData.remainingAmount}
-                      onChange={e => setFormData({...formData, remainingAmount: e.target.value.replace(/[^0-9.]/g, '')})}
-                      className="da-input bg-white pe-12 tabular-nums"
-                      placeholder="0"
-                    />
-                    <div className="absolute inset-y-0 end-0 flex items-center pe-3 pointer-events-none">
-                      <span className="text-xs font-bold text-slate-400">{currency}</span>
-                    </div>
-                  </div>
+                <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700">
+                  <span>{isAr ? 'المبلغ المتبقي (الذمة)' : 'Remaining Debt'}</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={formData.remainingAmount}
+                    onChange={(e) => setFormData({ ...formData, remainingAmount: e.target.value })}
+                    placeholder="0"
+                    className="da-input text-xs font-bold tabular-nums text-rose-600"
+                  />
                 </label>
               </div>
-
             </div>
-            <div className="flex justify-end gap-3 border-t border-slate-100 px-6 py-4 bg-slate-50/50 rounded-b-2xl">
+
+            <div className="da-mobile-sheet-footer bg-slate-50/70 border-t border-slate-100 flex items-center justify-end gap-2 px-5 py-3.5">
               <button
                 type="button"
                 onClick={() => setModal(false)}
-                className="da-btn-secondary !px-5 !py-2.5"
+                className="cursor-pointer rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 active:scale-95"
               >
                 {isAr ? 'إلغاء' : 'Cancel'}
               </button>
@@ -354,10 +646,12 @@ export function DistributorsPage() {
                 type="button"
                 onClick={handleSave}
                 disabled={!formData.name || !formData.company}
-                className="inline-flex cursor-pointer items-center justify-center rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all active:scale-95 disabled:opacity-50"
-                style={{ background: 'linear-gradient(135deg, #0d9488, #0891b2)' }}
+                className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl px-5 py-2 text-xs font-bold text-white shadow-sm transition-all hover:shadow hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+                style={{
+                  background: 'linear-gradient(135deg, var(--color-primary, #0d9488), #0f766e)',
+                }}
               >
-                {isAr ? 'حفظ الموزع' : 'Save Distributor'}
+                <span>{isAr ? 'حفظ البيانات' : 'Save'}</span>
               </button>
             </div>
           </div>

@@ -1,12 +1,27 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Plus, Search, Wallet, TrendingUp, TrendingDown, RefreshCcw, Trash2 } from 'lucide-react'
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
+  Plus,
+  RefreshCcw,
+  Search,
+  Trash2,
+  TrendingDown,
+  TrendingUp,
+  Wallet,
+  X,
+} from 'lucide-react'
 import { useSettingsStore } from '@/stores/settingsStore'
 import {
-  DesktopTableScroll,
+  DesktopTablePane,
   ListPageHeader,
   ListPageLayout,
   ListPageToolbar,
+  MobileCard,
+  MobileCardActions,
+  MobileCardList,
+  MobileEmptyState,
 } from '@/components/layout/ListPageLayout'
 import {
   listTransactions,
@@ -15,6 +30,11 @@ import {
   type TransactionRow,
 } from '@/services/dbService'
 
+function formatNumber(n: number): string {
+  if (isNaN(n) || !isFinite(n)) return '0'
+  return new Intl.NumberFormat('en-US').format(Math.round(n))
+}
+
 export function CashboxPage() {
   const { i18n } = useTranslation()
   const isAr = i18n.language === 'ar'
@@ -22,15 +42,26 @@ export function CashboxPage() {
 
   const [transactions, setTransactions] = useState<TransactionRow[]>([])
   const [q, setQ] = useState('')
+  const [typeFilter, setTypeFilter] = useState<'all' | 'income' | 'expense'>('all')
   const [loading, setLoading] = useState(true)
-  
+
   const [modal, setModal] = useState<boolean>(false)
   const [newTrx, setNewTrx] = useState({
     description: '',
     type: 'income',
     amount: '',
-    currency: currency || 'SYP'
+    currency: currency || 'SYP',
   })
+
+  const currencySymbol = useMemo(() => {
+    if (currency === 'SYP') return isAr ? 'ل.س' : 'SYP'
+    if (currency === 'IQD') return isAr ? 'د.ع' : 'IQD'
+    if (currency === 'USD') return '$'
+    if (currency === 'EUR') return '€'
+    if (currency === 'SAR') return isAr ? 'ر.س' : 'SAR'
+    if (currency === 'AED') return isAr ? 'د.إ' : 'AED'
+    return currency || ''
+  }, [currency, isAr])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -50,7 +81,7 @@ export function CashboxPage() {
   }, [loadData])
 
   useEffect(() => {
-    setNewTrx(prev => ({ ...prev, currency: currency || 'SYP' }))
+    setNewTrx((prev) => ({ ...prev, currency: currency || 'SYP' }))
   }, [currency])
 
   const handleAdd = async () => {
@@ -64,10 +95,15 @@ export function CashboxPage() {
         description: newTrx.description.trim(),
         type: newTrx.type as 'income' | 'expense',
         amount: amt,
-        currency: newTrx.currency
+        currency: newTrx.currency,
       })
       setModal(false)
-      setNewTrx({ description: '', type: 'income', amount: '', currency: currency || 'SYP' })
+      setNewTrx({
+        description: '',
+        type: 'income',
+        amount: '',
+        currency: currency || 'SYP',
+      })
       loadData()
     } catch (e) {
       console.error(e)
@@ -75,7 +111,13 @@ export function CashboxPage() {
   }
 
   const handleDelete = async (id: number) => {
-    if (window.confirm(isAr ? 'هل أنت متأكد من حذف هذه الحركة؟' : 'Are you sure you want to delete this transaction?')) {
+    if (
+      window.confirm(
+        isAr
+          ? 'هل أنت متأكد من حذف هذه الحركة من الصندوق؟'
+          : 'Are you sure you want to delete this cashbox entry?',
+      )
+    ) {
       try {
         await deleteTransaction(id)
         loadData()
@@ -85,144 +127,353 @@ export function CashboxPage() {
     }
   }
 
-  const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0)
-  const totalExpense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0)
+  const totalIncome = useMemo(
+    () => transactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + t.amount, 0),
+    [transactions],
+  )
+  const totalExpense = useMemo(
+    () => transactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0),
+    [transactions],
+  )
   const balance = totalIncome - totalExpense
+
+  const filtered = transactions.filter((t) => {
+    if (typeFilter !== 'all' && t.type !== typeFilter) return false
+    return true
+  })
 
   return (
     <ListPageLayout>
-      {/* Header */}
+      {/* ─── Header ─── */}
       <ListPageHeader>
-        <h1>
-          <Wallet className="size-6 text-teal-600" />
-          {isAr ? 'الصندوق' : 'Cash Box'}
-        </h1>
+        <div className="flex items-center gap-3">
+          <div
+            className="flex size-11 items-center justify-center rounded-2xl text-white shadow-sm"
+            style={{
+              background: 'linear-gradient(135deg, #0d9488, #059669)',
+              boxShadow: '0 4px 12px rgba(13, 148, 136, 0.25)',
+            }}
+          >
+            <Wallet className="size-5.5" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+              {isAr ? 'حسابات الصندوق والخزينة' : 'Clinic Cashbox'}
+            </h1>
+            <p className="text-xs text-slate-500 font-medium">
+              {isAr
+                ? 'إدارة التدفق المالي اليومي، المقبوضات والمدفوعات التشغيلية'
+                : 'Track daily cash inflow, patient collections and clinic expenses'}
+            </p>
+          </div>
+        </div>
+
         <button
           type="button"
           onClick={() => setModal(true)}
-          className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg active:scale-95"
-          style={{ background: 'linear-gradient(135deg, #0d9488, #0891b2)' }}
+          className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl px-4.5 py-2 text-xs font-bold text-white shadow-sm transition-all duration-200 hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
+          style={{
+            background: 'linear-gradient(135deg, var(--color-primary, #0d9488), #0f766e)',
+            boxShadow: '0 2px 10px var(--color-primary-glow, rgba(13, 148, 136, 0.3))',
+          }}
         >
           <Plus className="size-4" />
-          {isAr ? 'حركة جديدة' : 'New Transaction'}
+          <span>{isAr ? 'حركة نقدية جديدة' : 'New Transaction'}</span>
         </button>
       </ListPageHeader>
 
-      {/* KPI Cards */}
-      <div className="list-page-kpi-grid">
-        <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+      {/* ─── 3 KPI Cards ─── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 border-b border-slate-100 bg-slate-50/40 p-4 sm:gap-4 sm:p-5">
+        {/* Income Card */}
+        <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-2xs">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-teal-50 text-teal-600">
-              <TrendingUp className="size-5" />
+            <div className="flex size-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 shadow-2xs">
+              <TrendingUp className="size-5.5" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-slate-900 tabular-nums">
-                {totalIncome.toLocaleString()} <span className="text-xs text-slate-500">{currency}</span>
+              <p className="text-lg sm:text-xl font-extrabold text-emerald-700 tabular-nums">
+                {formatNumber(totalIncome)}{' '}
+                <span className="text-xs font-normal text-slate-500">{currencySymbol}</span>
               </p>
-              <p className="text-xs font-semibold text-slate-500">{isAr ? 'إجمالي المقبوضات' : 'Total Income'}</p>
+              <p className="text-[11px] font-bold text-slate-500">
+                {isAr ? 'إجمالي المقبوضات (إيرادات)' : 'Total Collections (In)'}
+              </p>
             </div>
           </div>
         </div>
-        <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+
+        {/* Expense Card */}
+        <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-2xs">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
-              <TrendingDown className="size-5" />
+            <div className="flex size-11 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 shadow-2xs">
+              <TrendingDown className="size-5.5" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-slate-900 tabular-nums">
-                {totalExpense.toLocaleString()} <span className="text-xs text-slate-500">{currency}</span>
+              <p className="text-lg sm:text-xl font-extrabold text-rose-700 tabular-nums">
+                {formatNumber(totalExpense)}{' '}
+                <span className="text-xs font-normal text-slate-500">{currencySymbol}</span>
               </p>
-              <p className="text-xs font-semibold text-slate-500">{isAr ? 'إجمالي المدفوعات' : 'Total Expenses'}</p>
+              <p className="text-[11px] font-bold text-slate-500">
+                {isAr ? 'إجمالي المدفوعات (مصاريف)' : 'Total Expenses (Out)'}
+              </p>
             </div>
           </div>
         </div>
-        <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+
+        {/* Net Balance Card */}
+        <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-2xs">
           <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-              <RefreshCcw className="size-5" />
+            <div
+              className={`flex size-11 items-center justify-center rounded-2xl shadow-2xs ${
+                balance >= 0 ? 'bg-teal-50 text-teal-600' : 'bg-rose-50 text-rose-600'
+              }`}
+            >
+              <RefreshCcw className="size-5.5" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-slate-900 tabular-nums" dir="ltr">
-                {balance.toLocaleString()} <span className="text-xs text-slate-500">{currency}</span>
+              <p
+                className={`text-lg sm:text-xl font-extrabold tabular-nums ${
+                  balance >= 0 ? 'text-slate-900' : 'text-rose-600'
+                }`}
+              >
+                {balance >= 0 ? '+' : ''}
+                {formatNumber(balance)}{' '}
+                <span className="text-xs font-normal text-slate-500">{currencySymbol}</span>
               </p>
-              <p className="text-xs font-semibold text-slate-500">{isAr ? 'الرصيد الصافي' : 'Net Balance'}</p>
+              <p className="text-[11px] font-bold text-slate-500">
+                {isAr ? 'الرصيد الصافي الفعلي' : 'Net Cash Position'}
+              </p>
             </div>
           </div>
         </div>
       </div>
 
+      {/* ─── Search & Type Filter Toolbar ─── */}
       <ListPageToolbar>
-        <h2 className="font-semibold text-slate-800">{isAr ? 'سجل الحركات' : 'Transaction Log'}</h2>
-        <div className="relative w-full max-w-xs">
-          <Search className="absolute top-1/2 size-4 -translate-y-1/2 text-slate-400 start-3" />
-          <input
-            type="text"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder={isAr ? 'بحث...' : 'Search...'}
-            className="w-full rounded-lg border border-slate-200 bg-white py-2 ps-9 pe-3 text-sm outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
-          />
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative w-full max-w-md">
+            <Search className="pointer-events-none absolute top-1/2 size-4 -translate-y-1/2 text-slate-400 start-3.5" />
+            <input
+              type="text"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={isAr ? 'بحث في البيان أو الملاحظات...' : 'Search description...'}
+              className="w-full rounded-2xl border border-slate-200/80 bg-white py-2.5 ps-10 pe-9 text-xs font-medium text-slate-800 shadow-2xs outline-none transition-all placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+            />
+            {q && (
+              <button
+                type="button"
+                onClick={() => setQ('')}
+                className="absolute top-1/2 -translate-y-1/2 end-3 text-slate-400 hover:text-slate-600"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1 rounded-2xl bg-slate-100/80 p-1 ring-1 ring-slate-200/60">
+            {[
+              { id: 'all', label: isAr ? 'الكل' : 'All' },
+              { id: 'income', label: isAr ? 'إيرادات (+)' : 'Income' },
+              { id: 'expense', label: isAr ? 'مصروفات (-)' : 'Expense' },
+            ].map((st) => (
+              <button
+                key={st.id}
+                type="button"
+                onClick={() => setTypeFilter(st.id as any)}
+                className={`cursor-pointer rounded-xl px-3.5 py-1 text-xs font-bold transition-all duration-150 ${
+                  typeFilter === st.id
+                    ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-200/50'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                {st.label}
+              </button>
+            ))}
+          </div>
         </div>
       </ListPageToolbar>
 
-      {/* Table Section */}
-      <DesktopTableScroll>
-        <table className="w-full text-sm text-slate-600 min-w-[800px]">
-          <thead className="sticky top-0 z-10 border-b border-slate-100 bg-white shadow-[0_1px_0_0_#f1f5f9]">
+      {/* ─── Mobile Cards ─── */}
+      <MobileCardList>
+        {loading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <MobileCard key={i}>
+              <div className="h-4 w-3/4 animate-pulse rounded bg-slate-100" />
+            </MobileCard>
+          ))
+        ) : filtered.length === 0 ? (
+          <MobileEmptyState icon={Wallet}>
+            <p className="text-sm font-semibold text-slate-700">
+              {isAr ? 'لا توجد حركات نقدية مسجلة' : 'No transactions recorded'}
+            </p>
+          </MobileEmptyState>
+        ) : (
+          filtered.map((t) => (
+            <MobileCard key={t.id}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className={`flex size-10 shrink-0 items-center justify-center rounded-xl shadow-2xs ${
+                      t.type === 'income'
+                        ? 'bg-emerald-50 text-emerald-600'
+                        : 'bg-rose-50 text-rose-600'
+                    }`}
+                  >
+                    {t.type === 'income' ? (
+                      <ArrowDownLeft className="size-5" />
+                    ) : (
+                      <ArrowUpRight className="size-5" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-900">{t.description}</p>
+                    <p className="text-xs font-mono text-slate-400">
+                      {t.trx_id ? `#${t.trx_id} · ` : ''}
+                      {t.date}
+                    </p>
+                  </div>
+                </div>
+
+                <p
+                  className={`text-sm font-extrabold tabular-nums ${
+                    t.type === 'income' ? 'text-emerald-700' : 'text-rose-600'
+                  }`}
+                >
+                  {t.type === 'income' ? '+' : '-'}
+                  {formatNumber(t.amount)} {currencySymbol}
+                </p>
+              </div>
+
+              <MobileCardActions>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(t.id)}
+                  className="flex size-7.5 items-center justify-center rounded-xl bg-slate-100 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              </MobileCardActions>
+            </MobileCard>
+          ))
+        )}
+      </MobileCardList>
+
+      {/* ─── Desktop Table View ─── */}
+      <DesktopTablePane>
+        <table className="min-w-[850px] w-full text-xs text-slate-600">
+          <thead className="sticky top-0 z-10 border-b border-slate-100 bg-slate-50/90 text-slate-600 backdrop-blur-xs">
             <tr>
-              <th className="px-6 py-3 text-start font-semibold text-slate-500 border-e border-slate-100">{isAr ? 'رقم الحركة' : 'ID'}</th>
-              <th className="px-6 py-3 text-start font-semibold text-slate-500 border-e border-slate-100">{isAr ? 'التاريخ' : 'Date'}</th>
-              <th className="px-6 py-3 text-start font-semibold text-slate-500 border-e border-slate-100">{isAr ? 'البيان' : 'Description'}</th>
-              <th className="px-6 py-3 text-start font-semibold text-slate-500 border-e border-slate-100">{isAr ? 'النوع' : 'Type'}</th>
-              <th className="px-6 py-3 text-start font-semibold text-slate-500 border-e border-slate-100">{isAr ? 'المبلغ' : 'Amount'}</th>
-              <th className="px-6 py-3 text-center font-semibold text-slate-500">{isAr ? 'إجراءات' : 'Actions'}</th>
+              <th className="w-16 px-6 py-3.5 text-center font-bold uppercase tracking-wider text-slate-400">
+                {isAr ? 'رقم' : 'ID'}
+              </th>
+              <th className="px-6 py-3.5 text-start font-bold uppercase tracking-wider text-slate-500">
+                {isAr ? 'التاريخ' : 'Date'}
+              </th>
+              <th className="px-6 py-3.5 text-start font-bold uppercase tracking-wider text-slate-500">
+                {isAr ? 'البيان / تفاصيل الحركة' : 'Description'}
+              </th>
+              <th className="px-6 py-3.5 text-start font-bold uppercase tracking-wider text-slate-500">
+                {isAr ? 'نوع السند' : 'Type'}
+              </th>
+              <th className="px-6 py-3.5 text-start font-bold uppercase tracking-wider text-slate-500">
+                {isAr ? 'المبلغ الصافي' : 'Amount'}
+              </th>
+              <th className="px-6 py-3.5 text-center font-bold uppercase tracking-wider text-slate-500">
+                {isAr ? 'إجراءات' : 'Actions'}
+              </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100/90 bg-white">
             {loading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <tr key={i}>
+                  <td className="px-6 py-4 text-center">
+                    <div className="h-4 w-8 mx-auto animate-pulse rounded bg-slate-100" />
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="h-4 w-20 animate-pulse rounded bg-slate-100" />
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="h-4 w-48 animate-pulse rounded bg-slate-100" />
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="h-4 w-16 animate-pulse rounded bg-slate-100" />
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="h-4 w-20 animate-pulse rounded bg-slate-100" />
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <div className="h-6 w-8 mx-auto animate-pulse rounded bg-slate-100" />
+                  </td>
+                </tr>
+              ))
+            ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
-                  {isAr ? 'جاري التحميل...' : 'Loading...'}
-                </td>
-              </tr>
-            ) : transactions.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                <td colSpan={6} className="px-6 py-16 text-center text-slate-400">
                   <div className="flex flex-col items-center justify-center gap-3">
-                    <Wallet className="size-10 text-slate-300" />
-                    {isAr ? 'لا توجد حركات مسجلة' : 'No transactions recorded'}
+                    <div className="flex size-14 items-center justify-center rounded-2xl bg-slate-50 text-slate-300 ring-1 ring-slate-100">
+                      <Wallet className="size-7" />
+                    </div>
+                    <p className="text-sm font-bold text-slate-700">
+                      {isAr ? 'لا توجد حركات مسجلة في الصندوق' : 'No transactions recorded'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setModal(true)}
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-teal-50 px-4 py-2 text-xs font-bold text-teal-800 hover:bg-teal-100 shadow-2xs"
+                    >
+                      <Plus className="size-4" />
+                      {isAr ? 'تسجيل حركة جديدة الآن' : 'New Transaction'}
+                    </button>
                   </div>
                 </td>
               </tr>
             ) : (
-              transactions.map(t => (
-                <tr key={t.id} className="transition-colors hover:bg-slate-50/50">
-                  <td className="px-6 py-4 font-mono text-xs font-semibold text-slate-500">{t.trx_id}</td>
-                  <td className="px-6 py-4 font-mono text-slate-500">{t.date}</td>
-                  <td className="px-6 py-4 font-medium text-slate-900">{t.description}</td>
-                  <td className="px-6 py-4">
+              filtered.map((t) => (
+                <tr
+                  key={t.id}
+                  className="group transition-colors duration-150 hover:bg-teal-50/20"
+                >
+                  <td className="px-6 py-3.5 text-center font-mono font-bold text-slate-400">
+                    {t.trx_id ? `#${t.trx_id}` : `#${t.id}`}
+                  </td>
+                  <td className="px-6 py-3.5 font-medium text-slate-600 font-mono">
+                    {t.date}
+                  </td>
+                  <td className="px-6 py-3.5 font-bold text-slate-900 group-hover:text-teal-900 transition-colors">
+                    {t.description}
+                  </td>
+                  <td className="px-6 py-3.5">
                     {t.type === 'income' ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-700">
-                        <TrendingUp className="size-3.5" />
-                        {isAr ? 'قبض (إيراد)' : 'Income'}
+                      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200/80 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
+                        <ArrowDownLeft className="size-3" />
+                        <span>{isAr ? 'سند قبض' : 'Income'}</span>
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
-                        <TrendingDown className="size-3.5" />
-                        {isAr ? 'صرف (مصروف)' : 'Expense'}
+                      <span className="inline-flex items-center gap-1 rounded-full border border-rose-200/80 bg-rose-50 px-2.5 py-0.5 text-[11px] font-bold text-rose-700">
+                        <ArrowUpRight className="size-3" />
+                        <span>{isAr ? 'سند صرف' : 'Expense'}</span>
                       </span>
                     )}
                   </td>
-                  <td className={`px-6 py-4 font-bold tabular-nums ${t.type === 'income' ? 'text-teal-600' : 'text-rose-600'}`}>
-                    {t.type === 'income' ? '+' : '-'}{t.amount.toLocaleString()} <span className="text-xs text-slate-400">{t.currency}</span>
+                  <td
+                    className={`px-6 py-3.5 font-extrabold tabular-nums text-sm ${
+                      t.type === 'income' ? 'text-emerald-700' : 'text-rose-600'
+                    }`}
+                  >
+                    {t.type === 'income' ? '+' : '-'}
+                    {formatNumber(t.amount)}{' '}
+                    <span className="text-xs font-normal text-slate-500">{currencySymbol}</span>
                   </td>
-                  <td className="px-6 py-4 text-center">
+                  <td className="px-6 py-3.5 text-center">
                     <button
+                      type="button"
                       onClick={() => handleDelete(t.id)}
-                      className="flex size-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500 transition-colors hover:bg-rose-100 hover:text-rose-600 mx-auto"
-                      title={isAr ? 'حذف' : 'Delete'}
+                      className="flex size-7.5 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-400 shadow-2xs transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 mx-auto"
+                      title={isAr ? 'حذف الحركة' : 'Delete'}
                     >
-                      <Trash2 className="size-4" />
+                      <Trash2 className="size-3.5" />
                     </button>
                   </td>
                 </tr>
@@ -230,85 +481,118 @@ export function CashboxPage() {
             )}
           </tbody>
         </table>
-      </DesktopTableScroll>
+      </DesktopTablePane>
 
+      {/* ─── Modal Dialog ─── */}
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
-            <div className="border-b border-slate-100 px-6 py-5">
-              <h2 className="text-lg font-bold text-slate-900">
-                {isAr ? 'تسجيل حركة جديدة' : 'New Transaction'}
-              </h2>
-            </div>
-            <div className="space-y-4 p-6">
-              <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
-                {isAr ? 'نوع الحركة' : 'Type'}
-                <select
-                  value={newTrx.type}
-                  onChange={e => setNewTrx({...newTrx, type: e.target.value as 'income' | 'expense'})}
-                  className="da-input bg-white"
+        <div className="da-mobile-sheet-overlay">
+          <div className="da-mobile-sheet max-w-md rounded-2xl bg-white shadow-2xl border border-slate-200/80 overflow-hidden">
+            <div className="shrink-0 border-b border-slate-100 bg-slate-50/70 px-5 py-4 sm:px-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex size-9 items-center justify-center rounded-xl bg-teal-50 text-teal-700">
+                    <Wallet className="size-4.5" />
+                  </div>
+                  <h2 className="text-base font-bold text-slate-900">
+                    {isAr ? 'تسجيل حركة نقدية بالصندوق' : 'New Transaction'}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setModal(false)}
+                  className="rounded-xl p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
                 >
-                  <option value="income">{isAr ? 'سند قبض (إيراد)' : 'Income'}</option>
-                  <option value="expense">{isAr ? 'سند صرف (مصروف)' : 'Expense'}</option>
-                </select>
+                  <X className="size-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="da-mobile-sheet-body thin-scrollbar space-y-4 p-5 sm:p-6">
+              <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700">
+                <span>{isAr ? 'نوع الحركة النقدية' : 'Type'}</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setNewTrx({ ...newTrx, type: 'income' })}
+                    className={`flex items-center justify-center gap-1.5 rounded-xl border py-2.5 text-xs font-bold transition-all ${
+                      newTrx.type === 'income'
+                        ? 'border-emerald-300 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-500/20'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <ArrowDownLeft className="size-3.5 text-emerald-600" />
+                    <span>{isAr ? 'سند قبض (إيراد)' : 'Income (+)'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewTrx({ ...newTrx, type: 'expense' })}
+                    className={`flex items-center justify-center gap-1.5 rounded-xl border py-2.5 text-xs font-bold transition-all ${
+                      newTrx.type === 'expense'
+                        ? 'border-rose-300 bg-rose-50 text-rose-800 ring-2 ring-rose-500/20'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <ArrowUpRight className="size-3.5 text-rose-600" />
+                    <span>{isAr ? 'سند صرف (مصروف)' : 'Expense (-)'}</span>
+                  </button>
+                </div>
               </label>
-              <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
-                {isAr ? 'البيان' : 'Description'}
+
+              <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700">
+                <span>{isAr ? 'البيان / سبب الحركة' : 'Description'}</span>
                 <input
                   type="text"
                   value={newTrx.description || ''}
-                  onChange={e => setNewTrx({...newTrx, description: e.target.value})}
-                  className="da-input bg-white"
-                  placeholder={isAr ? 'مثال: شراء مواد عيادة...' : 'e.g. Clinic supplies...'}
+                  onChange={(e) => setNewTrx({ ...newTrx, description: e.target.value })}
+                  placeholder={
+                    newTrx.type === 'income'
+                      ? isAr
+                        ? 'مثال: دفعة جلسة تقويم، كشف استشارة...'
+                        : 'e.g. Patient consultation fee'
+                      : isAr
+                        ? 'مثال: شراء كيت تبييض، مصاريف تعقيم...'
+                        : 'e.g. Clinic supplies, sterilization'
+                  }
+                  className="da-input text-xs"
                 />
               </label>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
-                  {isAr ? 'المبلغ' : 'Amount'}
-                  <div className="relative">
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={newTrx.amount}
-                      onChange={e => setNewTrx({...newTrx, amount: e.target.value.replace(/[^0-9.]/g, '')})}
-                      className="da-input bg-white pe-12 tabular-nums"
-                      placeholder="0"
-                    />
-                    <div className="absolute inset-y-0 end-0 flex items-center pe-3 pointer-events-none">
-                      <span className="text-xs font-bold text-slate-400">{newTrx.currency}</span>
-                    </div>
-                  </div>
-                </label>
-                <label className="flex flex-col gap-2 text-sm font-semibold text-slate-700">
-                  {isAr ? 'العملة' : 'Currency'}
-                  <select
-                    value={newTrx.currency}
-                    onChange={e => setNewTrx({...newTrx, currency: e.target.value})}
-                    className="da-input bg-white"
-                  >
-                    <option value="SYP">SYP</option>
-                    <option value="IQD">IQD</option>
-                    <option value="USD">USD</option>
-                  </select>
-                </label>
-              </div>
+
+              <label className="flex flex-col gap-1.5 text-xs font-bold text-slate-700">
+                <span>{isAr ? 'المبلغ النقدي' : 'Amount'}</span>
+                <div className="relative">
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={newTrx.amount || ''}
+                    onChange={(e) => setNewTrx({ ...newTrx, amount: e.target.value })}
+                    placeholder="0"
+                    className="da-input text-sm font-bold tabular-nums pe-16"
+                  />
+                  <span className="pointer-events-none absolute top-1/2 -translate-y-1/2 end-3 text-xs font-bold text-slate-400">
+                    {currencySymbol}
+                  </span>
+                </div>
+              </label>
             </div>
-            <div className="flex justify-end gap-3 border-t border-slate-100 px-6 py-4 bg-slate-50/50 rounded-b-2xl">
+
+            <div className="da-mobile-sheet-footer bg-slate-50/70 border-t border-slate-100 flex items-center justify-end gap-2 px-5 py-3.5">
               <button
                 type="button"
                 onClick={() => setModal(false)}
-                className="da-btn-secondary !px-5 !py-2.5"
+                className="cursor-pointer rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 active:scale-95"
               >
                 {isAr ? 'إلغاء' : 'Cancel'}
               </button>
               <button
                 type="button"
                 onClick={handleAdd}
-                disabled={!newTrx.description || !newTrx.amount}
-                className="inline-flex cursor-pointer items-center justify-center rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all active:scale-95 disabled:opacity-50"
-                style={{ background: 'linear-gradient(135deg, #0d9488, #0891b2)' }}
+                className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl px-5 py-2 text-xs font-bold text-white shadow-sm transition-all hover:shadow hover:scale-[1.02] active:scale-[0.98]"
+                style={{
+                  background: 'linear-gradient(135deg, var(--color-primary, #0d9488), #0f766e)',
+                }}
               >
-                {isAr ? 'حفظ' : 'Save'}
+                <span>{isAr ? 'تسجيل الحركة' : 'Save Entry'}</span>
               </button>
             </div>
           </div>
